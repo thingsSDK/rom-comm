@@ -1,0 +1,30 @@
+{
+  "name": "rom-comm",
+  "version": "1.0.0",
+  "description": "ROM Communication",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thingsSDK/rom-comm.git"
+  },
+  "keywords": [
+    "iot",
+    "rom",
+    "esp8266",
+    "esp32",
+    "flash",
+    "flasher"
+  ],
+  "author": "Craig Dennis",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thingsSDK/rom-comm/issues"
+  },
+  "homepage": "https://github.com/thingsSDK/rom-comm#readme",
+  "dependencies": {
+    "serialport": "^4.0.3"
+  }
+}
