@@ -4,7 +4,7 @@
   "description": "ROM Communication",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "ava"
   },
   "repository": {
     "type": "git",
@@ -25,6 +25,10 @@
   },
   "homepage": "https://github.com/thingsSDK/rom-comm#readme",
   "dependencies": {
+    "rxjs": "^5.0.0-beta.12",
     "serialport": "^4.0.3"
+  },
+  "devDependencies": {
+    "ava": "^0.16.0"
   }
 }
