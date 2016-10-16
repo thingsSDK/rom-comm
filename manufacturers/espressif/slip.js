@@ -92,6 +92,7 @@ function decodeStream(stream$) {
 }
 
 module.exports =  {
+    CODES: CODES,
     encode: encode,
-    decode: decodeStream
+    decodeStream: decodeStream
 };

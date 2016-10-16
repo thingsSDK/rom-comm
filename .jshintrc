@@ -1,6 +1,7 @@
 {
     "esversion": 6,
     "node": true,
+    "mocha": true,
     "strict": true,
     "browser": true
 }
