@@ -73,7 +73,7 @@ module.exports = function(options) {
         );
     }
 
-    const responseStream = Rx.Observable.create(observer => {
+    const response$ = Rx.Observable.create(observer => {
         comm.bindObserver(observer);
     })
         .flatMap(data => Rx.Observable.from(data))
@@ -83,6 +83,6 @@ module.exports = function(options) {
         open: comm.open.bind(comm),
         resetIntoBootLoader: resetIntoBootLoader,
         // DEBUG ONLY
-        responseStream: responseStream
+        response$: response$
     };
 };

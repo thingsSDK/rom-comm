@@ -36,7 +36,7 @@ function encode(data) {
 }
 
 // Builds a byte based scan accumulator.  Use this with filter and map on the
-// `result.emit` to get decoded emissions.
+// `result.emit` to get decoded emissions, like decodeStream.
 function decodeAccumulator(acc, value) {
     const next = acc.buffer;
     // SLIP messages open and close with frameEnd
@@ -86,7 +86,7 @@ function decodeAccumulator(acc, value) {
 }
 
 function decodeStream(stream$) {
-    return stream$.scan(decodeAccumulator)
+    return stream$.scan(decodeAccumulator, {buffer: []})
         .filter(x => x.emit)
         .map(x => x.emit);
 }

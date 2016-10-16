@@ -7,11 +7,10 @@ const device = Device({
     baudRate: 115200
 });
 
-
-device.responseStream.subscribe(
-    data => log.info("Got back next", data),
+device.response$.subscribe(
+    data => log.debug("Got back next", data),
     err => log.error("Whoops error on", err),
-    () => log.info("Donezo")
+    () => log.debug("Donezo")
 );
 
 device.open(() => {
