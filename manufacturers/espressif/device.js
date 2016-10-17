@@ -4,6 +4,8 @@ const Rx = require("rxjs/Rx");
 const log = require("../../logger");
 // TODO: detect this automatically, not sure there will be others
 const Comm = require("./serial");
+const commands = require("./commands");
+const slip = require("./slip");
 
 
 const FLASH_MODES = {
@@ -74,10 +76,25 @@ module.exports = function(options) {
     }
 
     const response$ = Rx.Observable.create(observer => {
-        comm.bindObserver(observer);
+        // Binds and provides unbinding to the comm abstraction.
+        return comm.bindObserver(observer);
     })
         .flatMap(data => Rx.Observable.from(data))
         .share();
+
+    // TODO:  This is itching for reuse
+    const sync = function() {
+        const metadata = commands.sync();
+
+        comm.send(metadata.message);
+
+        slip.decodeStream(response$)
+            .map(commands.toResponse)
+            .filter(response => (response.valid &&
+                        metadata.commandCode === response.commandCode));
+
+
+    };
 
     return {
         open: comm.open.bind(comm),

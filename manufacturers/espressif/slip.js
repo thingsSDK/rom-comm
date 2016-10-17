@@ -11,6 +11,7 @@ const CODES = {
  };
 
 function encode(data) {
+    // 100 extra bytes for escapes...probably overkill
     const encoded = Buffer.alloc(data.length + 100);
     let encodedLength = 0;
     encoded[0] = CODES.frameEnd;

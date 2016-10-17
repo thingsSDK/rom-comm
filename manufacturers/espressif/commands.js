@@ -1,5 +1,7 @@
 "use strict";
 
+const slip = require('./slip');
+
 const commands = {
     CMD0: 0x00,
     CMD1: 0x01,
@@ -15,6 +17,13 @@ const commands = {
     SET_FLASH_PARAMS: 0x0B,
     NO_COMMAND: 0xFF
 };
+
+function commandToKey(command) {
+    // value to key
+    return Object
+        .keys(commands)
+        .find(key => commands[key] === command);
+}
 
 
 function calculateChecksum(data) {
@@ -50,23 +59,65 @@ function headerPacketFor(command, data) {
     return new Buffer(buf);
 }
 
-/**
- * Unpack the response header
- */
-function headerPacketFrom(buffer) {
-    let header = {};
-    header.direction = buffer.readUInt8(0);
-    header.command = buffer.readUInt8(1);
-    header.size = buffer.readUInt16LE(2);
-    header.checksum = buffer.readUInt32LE(4);
-    return header;
+
+const SYNC_FRAME = new ArrayBuffer([0x07, 0x07, 0x12, 0x20,
+    0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+    0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+    0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+    0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55]);
+function sync() {
+    return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {});
 }
 
-function sendCommand(command, data) {
-    let sendHeader = headerPacketFor(command, data);
+function prepareCommand(command, data, options) {
+    const sendHeader = headerPacketFor(command, data);
+    // TODO:  Use ArrayBuffer instead of Node Buffer
+    const message = Buffer.concat([sendHeader, data], sendHeader.length + data.length);
+    return Object.assign({
+        commandCode: command,
+        data: slip.encode(message),
+    }, options);
+}
 
+// NOTE: Data needs to be slip decoded
+function toResponse(data) {
+    if (data.length < 8) {
+        return {
+            valid: false,
+            error: 'Missing header'
+        };
+    }
+
+    const dv = new DataView(data);
+    const header = {
+        direction: dv.getUInt8(0),
+        command: dv.getUInt8(1),
+        // NOTE: Little Endian represented by true here
+        size: dv.getUInt16(2, true),
+        checksum: dv.getUInt32(4, true)
+    };
+
+    // If it is not marked as a response
+    if (header.direction != 0x01) {
+        return {
+            valid: false,
+            header: header,
+            error: `Invalid direction: ${header.direction}`
+        };
+    }
+    return {
+        valid: true,
+        commandCode: header.command,
+        header: header,
+        // TODO:  Ported this, but it seems like a bug
+        body: data.slice(8, 8 + header.size)
+    };
 
 
 
 }
 
+module.exports = {
+    toResponse: toResponse,
+    sync: sync
+};

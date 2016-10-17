@@ -15,9 +15,22 @@ module.exports = function(options) {
     });
 
     function bindObserver(observer) {
-        port.on("data", data => observer.next(data));
-        port.on("error", error => observer.error(error));
-        port.on("close", () => observer.done());
+        const dataBinding = data => observer.next(data);
+        const errorBinding = error => observer.error(error);
+        const doneBinding = () => observer.done();
+        port.on("data", dataBinding);
+        port.on("error", errorBinding);
+        port.on("close", doneBinding);
+
+        return () => {
+            port.removeListener("data", dataBinding);
+            port.removeListener("error", errorBinding);
+            port.removeListener("close", doneBinding);
+        };
+    }
+
+    function send(data, errorCallback) {
+        return port.write(data, errorCallback);
     }
 
     function setOptions(options, callback) {
