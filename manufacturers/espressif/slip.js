@@ -12,11 +12,11 @@ const CODES = {
 
 function encode(data) {
     // 100 extra bytes for escapes...probably overkill
-    const encoded = Buffer.alloc(data.length + 100);
+    const encoded = new Uint8Array(data.byteLength + 100);
     let encodedLength = 0;
     encoded[0] = CODES.frameEnd;
 
-    const dataStream = Rx.Observable.create(data)
+    const dataStream = Rx.Observable.from(new Uint8Array(data))
         .flatMap(value => {
             let values = [value];
             if (value === CODES.frameEnd) {
@@ -28,11 +28,11 @@ function encode(data) {
             return Rx.Observable.from(values);
         });
 
-    dataStream.subscribe(data => {
-        encoded.write(data);
+    dataStream.subscribe(x => {
+        encoded[encodedLength] = x;
         encodedLength++;
     });
-    encoded.write(CODES.frameEnd);
+    encoded[encodedLength] = CODES.frameEnd;
     return encoded.slice(0, encodedLength);
 }
 

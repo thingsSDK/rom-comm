@@ -60,7 +60,7 @@ function headerPacketFor(command, data) {
 }
 
 
-const SYNC_FRAME = new ArrayBuffer([0x07, 0x07, 0x12, 0x20,
+const SYNC_FRAME = new Uint8Array([0x07, 0x07, 0x12, 0x20,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
@@ -69,10 +69,16 @@ function sync() {
     return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {});
 }
 
+function bufferConcat(buffer1, buffer2) {
+    const tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+    tmp.set(new Uint8Array(buffer1), 0);
+    tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
+    return tmp.buffer;
+}
+
 function prepareCommand(command, data, options) {
     const sendHeader = headerPacketFor(command, data);
-    // TODO:  Use ArrayBuffer instead of Node Buffer
-    const message = Buffer.concat([sendHeader, data], sendHeader.length + data.length);
+    const message = bufferConcat(sendHeader, data);
     return Object.assign({
         commandCode: command,
         data: slip.encode(message),
@@ -82,12 +88,8 @@ function prepareCommand(command, data, options) {
 // NOTE: Data needs to be slip decoded
 function toResponse(data) {
     if (data.length < 8) {
-        return {
-            valid: false,
-            error: 'Missing header'
-        };
+        throw Error('Missing header');
     }
-
     const dv = new DataView(data);
     const header = {
         direction: dv.getUInt8(0),
@@ -99,14 +101,9 @@ function toResponse(data) {
 
     // If it is not marked as a response
     if (header.direction != 0x01) {
-        return {
-            valid: false,
-            header: header,
-            error: `Invalid direction: ${header.direction}`
-        };
+        throw Error(`Invalid direction: ${header.direction}`);
     }
     return {
-        valid: true,
         commandCode: header.command,
         header: header,
         // TODO:  Ported this, but it seems like a bug

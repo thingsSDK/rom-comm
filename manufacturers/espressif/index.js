@@ -1,5 +1,5 @@
 "use strict";
-
+const Rx = require("rxjs/Rx");
 const log = require("../../logger");
 const Device = require('./device');
 const device = Device({
@@ -13,6 +13,12 @@ device.response$.subscribe(
     () => log.debug("Donezo")
 );
 
-device.open(() => {
+device.open((err) => {
+    if (err) log.error(err);
     device.resetIntoBootLoader();
+    Rx.Observable.of(1).delay(500).repeat(10).subscribe(x => device.sync());
+    Rx.Observable.of(1).delay(500).repeat(10).subscribe(x => device.sync());
+    Rx.Observable.of(1).delay(500).repeat(10).subscribe(x => device.sync());
+    Rx.Observable.of(1).delay(500).repeat(10).subscribe(x => device.sync());
+
 });

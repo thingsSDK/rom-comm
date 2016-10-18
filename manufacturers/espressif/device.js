@@ -42,6 +42,9 @@ const Options = {
         flashFrequency: "80m",
         flashMode: "qio",
         flashSize: "32m",
+        // RTS - Request To Send
+        // DTR - Data Terminal Ready
+        // NOTE: Must set values at the same time.
         bootLoaderSequence: [
             [0, {rts: true, dtr: false}],
             [5, {rts: false, dtr: true}],
@@ -61,7 +64,9 @@ module.exports = function(options) {
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
-            .take(at.size);
+            .take(at.size)
+            .repeat(10);
+
 
         sequence$.subscribe(
             key => {
@@ -71,7 +76,7 @@ module.exports = function(options) {
                 });
             },
             err => log.error("Problems resetting into bootloader mode", err),
-            done => log.info("Did it")
+            done => comm.flush(() => sync())
         );
     }
 
@@ -84,21 +89,32 @@ module.exports = function(options) {
 
     // TODO:  This is itching for reuse
     const sync = function() {
+        // Request
         const metadata = commands.sync();
-
-        comm.send(metadata.message);
-
-        slip.decodeStream(response$)
+        Rx.Observable.of(metadata)
+            .do(x => log.info('Attempting sync', metadata.data))
+            .switchMap(x => {
+                comm.send(metadata.data);
+                return slip.decodeStream(response$);
+            })
+            // Response
+            .do(x => log.info("Got back", x))
             .map(commands.toResponse)
-            .filter(response => (response.valid &&
-                        metadata.commandCode === response.commandCode));
-
-
+            .filter(response => metadata.commandCode === response.commandCode)
+            .take(1)
+            // Handle errors (TODO: use metadata)
+            .retry(10)
+            .subscribe(
+                (x) => log.info('Next', x),
+                (err) => log.error(`Failed performing ${metadata.commandCode}`, err),
+                () => log.info(`Successful ${metadata.commandCode}`)
+            );
     };
 
     return {
         open: comm.open.bind(comm),
         resetIntoBootLoader: resetIntoBootLoader,
+        sync: sync,
         // DEBUG ONLY
         response$: response$
     };
