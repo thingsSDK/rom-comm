@@ -58,23 +58,26 @@ module.exports = function(options) {
     // TODO: detect this
     const boardName = options.boardName || "Esp12";
 
+    const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
+
     function resetIntoBootLoader() {
         log.info("Resetting into bootloader...");
         const at = new Map(Options[boardName].bootLoaderSequence);
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
-            .take(at.size)
-            .repeat(10);
+            .map(key => {
+                return Rx.Observable.defer(() => {
+                    const options = at.get(key);
+                    return setOptions$(options);
+                });
+            })
+            .concatAll()
+            .take(at.size);
 
 
         sequence$.subscribe(
-            key => {
-                log.debug("Setting port", key, at.get(key));
-                comm.setOptions(at.get(key), () => {
-                    log.info("Port set", at.get(key));
-                });
-            },
+            key => log.debug("Set port", key, at.get(key)),
             err => log.error("Problems resetting into bootloader mode", err),
             done => comm.flush(() => sync())
         );
@@ -87,27 +90,29 @@ module.exports = function(options) {
         .flatMap(data => Rx.Observable.from(data))
         .share();
 
-    // TODO:  This is itching for reuse
     const sync = function() {
-        // Request
-        const metadata = commands.sync();
+        sendCommand('sync', commands.sync());
+
+    };
+
+    const sendCommand = function(displayName, metadata) {
         Rx.Observable.of(metadata)
-            .do(x => log.info('Attempting sync', metadata.data))
+            .do(x => log.debug('Attempting', displayName, metadata.data))
             .switchMap(x => {
                 comm.send(metadata.data);
                 return slip.decodeStream(response$);
             })
             // Response
-            .do(x => log.info("Got back", x))
             .map(commands.toResponse)
             .filter(response => metadata.commandCode === response.commandCode)
             .take(1)
             // Handle errors (TODO: use metadata)
+            .timeout(100)
             .retry(10)
             .subscribe(
-                (x) => log.info('Next', x),
-                (err) => log.error(`Failed performing ${metadata.commandCode}`, err),
-                () => log.info(`Successful ${metadata.commandCode}`)
+                (x) => log.info(`Command ${displayName} returned`, x),
+                (err) => log.error(`Failed performing ${displayName}`, err),
+                () => log.info(`Successful ${displayName}`)
             );
     };
 

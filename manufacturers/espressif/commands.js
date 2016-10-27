@@ -65,6 +65,7 @@ const SYNC_FRAME = new Uint8Array([0x07, 0x07, 0x12, 0x20,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55]);
+
 function sync() {
     return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {});
 }
@@ -92,11 +93,11 @@ function toResponse(data) {
     }
     const dv = new DataView(data);
     const header = {
-        direction: dv.getUInt8(0),
-        command: dv.getUInt8(1),
+        direction: dv.getUint8(0),
+        command: dv.getUint8(1),
         // NOTE: Little Endian represented by true here
-        size: dv.getUInt16(2, true),
-        checksum: dv.getUInt32(4, true)
+        size: dv.getUint16(2, true),
+        checksum: dv.getUint32(4, true)
     };
 
     // If it is not marked as a response

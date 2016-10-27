@@ -6,6 +6,30 @@ const Rx = require("rxjs/Rx");
 const slip = require("../manufacturers/espressif/slip");
 const FE = slip.CODES.frameEnd;
 
+describe("encode", () => {
+    it("starts and ends with frame end markers", () => {
+        const data = Uint8Array.of(1, 2);
+
+        const slipped = slip.encode(data);
+
+        assert.equal(slipped.length, 4);
+        assert.deepEqual(slipped,
+            Uint8Array.of(FE, 1, 2, FE)
+        );
+    });
+
+    it("escapes frame ends", () => {
+        const data = Uint8Array.of(FE);
+
+        const slipped = slip.encode(data);
+
+        assert.equal(slipped.length, 4);
+        assert.deepEqual(slipped,
+            Uint8Array.of(FE, slip.CODES.frameEscape, slip.CODES.transposedFrameEnd, FE)
+        );
+    });
+});
+
 describe("decodeStream", () => {
     it("emits decoded streams only", () => {
         const results = [];

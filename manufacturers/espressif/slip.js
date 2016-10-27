@@ -15,6 +15,7 @@ function encode(data) {
     const encoded = new Uint8Array(data.byteLength + 100);
     let encodedLength = 0;
     encoded[0] = CODES.frameEnd;
+    encodedLength++;
 
     const dataStream = Rx.Observable.from(new Uint8Array(data))
         .flatMap(value => {
@@ -33,6 +34,7 @@ function encode(data) {
         encodedLength++;
     });
     encoded[encodedLength] = CODES.frameEnd;
+    encodedLength++;
     return encoded.slice(0, encodedLength);
 }
 
@@ -54,7 +56,7 @@ function decodeAccumulator(acc, value) {
         return {
             slipping: false,
             buffer: [],  // Resets the buffer
-            emit: next
+            emit: Uint8Array.from(next).buffer
         };
     }
     // If we are within the SLIP boundaries
