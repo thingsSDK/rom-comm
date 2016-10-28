@@ -90,12 +90,9 @@ module.exports = function(options) {
         .flatMap(data => Rx.Observable.from(data))
         .share();
 
-    const sync = function() {
-        sendCommand('sync', commands.sync());
-
-    };
-
     const sendCommand = function(displayName, metadata) {
+        const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+
         Rx.Observable.of(metadata)
             .do(x => log.debug('Attempting', displayName, metadata.data))
             .switchMap(x => {
@@ -107,7 +104,7 @@ module.exports = function(options) {
             .filter(response => metadata.commandCode === response.commandCode)
             .take(1)
             // Handle errors (TODO: use metadata)
-            .timeout(100)
+            .timeout(3000)
             .retry(10)
             .subscribe(
                 (x) => log.info(`Command ${displayName} returned`, x),
@@ -116,10 +113,35 @@ module.exports = function(options) {
             );
     };
 
+    const sync = function() {
+        sendCommand('sync', commands.sync());
+
+    };
+
+    const flashAddress = function(address, data) {
+        const flashInfo = {
+            flashMode: FLASH_MODES[Options[boardName].flashMode],
+            flashSize: FLASH_SIZES[Options[boardName].flashSize]
+        };
+        sendCommand('flashBegin', commands.flashBegin(address, data.length));
+        const cmds = commands.flashAddress(address, data, flashInfo);
+        cmds.forEach((cmd, index) => {
+           sendCommand(`flashAddress[${index + 1} of ${cmds.length}]`, cmd);
+        });
+    };
+
+    const flashFinish = function() {
+        flashAddress(0, 0);
+        sendCommand('flashFinish', commands.flashFinish());
+    };
+
     return {
         open: comm.open.bind(comm),
+        close: comm.close.bind(comm),
         resetIntoBootLoader: resetIntoBootLoader,
         sync: sync,
+        flashAddress: flashAddress,
+        flashFinish: flashFinish,
         // DEBUG ONLY
         response$: response$
     };

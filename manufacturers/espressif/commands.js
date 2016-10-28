@@ -5,18 +5,21 @@ const slip = require('./slip');
 const commands = {
     CMD0: 0x00,
     CMD1: 0x01,
-    FLASH_DOWNLOAD_BEGIN: 0x02,
-    FLASH_DOWNLOAD_DATA: 0x03,
-    FLASH_DOWNLOAD_DONE: 0x04,
-    RAM_DOWNLOAD_BEGIN: 0x05,
-    RAM_DOWNLOAD_END: 0x06,
-    RAM_DOWNLOAD_DATA: 0x07,
+    FLASH_BEGIN: 0x02,
+    FLASH_DATA: 0x03,
+    FLASH_DONE: 0x04,
+    RAM_BEGIN: 0x05,
+    RAM_END: 0x06,
+    RA_DATA: 0x07,
     SYNC_FRAME: 0x08,
     WRITE_REGISTER: 0x09,
     READ_REGISTER: 0x0A,
     SET_FLASH_PARAMS: 0x0B,
     NO_COMMAND: 0xFF
 };
+const FLASH_BLOCK_SIZE = 0x400;
+const SECTORS_PER_BLOCK = 16;
+const SECTOR_SIZE = 4096;
 
 function commandToKey(command) {
     // value to key
@@ -43,10 +46,10 @@ function headerPacketFor(command, data) {
     let buf = new ArrayBuffer(8);
     let dv = new DataView(buf);
     let checksum = 0;
-    if (command === commands.FLASH_DOWNLOAD_DATA) {
+    if (command === commands.FLASH_DATA) {
         // There are additional headers here....
         checksum = calculateChecksum(data.slice(16));
-    } else if (command === commands.FLASH_DOWNLOAD_DONE) {
+    } else if (command === commands.FLASH_DONE) {
         // Nothing to see here
     } else {
         // Most commands want the checksum of the entire data packet
@@ -66,8 +69,80 @@ const SYNC_FRAME = new Uint8Array([0x07, 0x07, 0x12, 0x20,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55]);
 
+function determineNumBlocks(blockSize, length) {
+    return Math.floor((length + blockSize - 1) / blockSize);
+}
+
 function sync() {
     return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {});
+}
+
+function flashBegin(address, size) {
+    const numBlocks = determineNumBlocks(FLASH_BLOCK_SIZE, size);
+    const numSectors = Math.floor((size + SECTOR_SIZE - 1) / SECTOR_SIZE);
+    const startSector = Math.floor(address / SECTOR_SIZE);
+    // Leave some room for header space
+    let headSectors = SECTORS_PER_BLOCK - (startSector % SECTORS_PER_BLOCK);
+    if (numSectors < headSectors) {
+        headSectors = numSectors;
+    }
+    let eraseSize = (numSectors - headSectors) * SECTOR_SIZE;
+    // TODO:csd - Research this...
+    /* SPIEraseArea function in the esp8266 ROM has a bug which causes extra area to be erased.
+        If the address range to be erased crosses the block boundary,
+        then extra head_sector_count sectors are erased.
+        If the address range doesn't cross the block boundary,
+        then extra total_sector_count sectors are erased.
+    */
+    if (numSectors < (2 * headSectors)) {
+        eraseSize = ((numSectors + 1) / 2) * SECTOR_SIZE;
+    }
+    const buffer = new ArrayBuffer(16);
+    var dv = new DataView(buffer);
+    dv.setUint32(0, eraseSize, true);
+    dv.setUint32(4, numBlocks, true);
+    dv.setUint32(8, FLASH_BLOCK_SIZE, true);
+    dv.setUint32(12, address, true);
+    return prepareCommand(commands.FLASH_BEGIN, Uint8Array.from(buffer));
+}
+
+function flashAddress(address, data, flashInfo) {
+    const numBlocks = determineNumBlocks(FLASH_BLOCK_SIZE, data.length);
+    let requests = [];
+    for (let seq = 0; seq < numBlocks; seq++) {
+        let startIndex = seq * FLASH_BLOCK_SIZE;
+        let endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.length);
+        let block = data.slice(startIndex, endIndex);
+        // On the first block of the first sequence, override the flash info...
+        if (address === 0 && seq === 0 && block[0] === 0xe9) {
+            // ... which lives in the 3rd and 4th bytes
+            // TODO:  This looks different in the new esptool.py
+            block[2] = flashInfo.flashMode;
+            block[3] = flashInfo.flashSize;
+        }
+        // On the last block
+        if (endIndex === data.length) {
+            // Pad the remaining bits
+            let padAmount = FLASH_BLOCK_SIZE - block.length;
+            block = Buffer.concat([block, new Buffer(padAmount).fill(0xFF)]);
+        }
+        var buffer = new ArrayBuffer(16);
+        var dv = new DataView(buffer);
+        dv.setUint32(0, block.length, true);
+        dv.setUint32(4, seq, true);
+        dv.setUint32(8, 0, true);  // Uhhh
+        dv.setUint32(12, 0, true);  // Uhhh
+        requests.push(bufferConcat(buffer, block));
+    }
+    return requests.map(req => prepareCommand(commands.FLASH_DATA, req));
+}
+
+function flashFinish(reboot) {
+    let buffer = new ArrayBuffer(4);
+    let dv = new DataView(buffer);
+    // FIXME:csd - That inverted logic is correct...probably a better variable name than reboot
+    dv.setUint32(0, reboot ? 0 : 1, true);
+    return prepareCommand(commands.FLASH_DONE, Uint8Array.from(buffer));
 }
 
 function bufferConcat(buffer1, buffer2) {
@@ -83,6 +158,8 @@ function prepareCommand(command, data, options) {
     return Object.assign({
         commandCode: command,
         data: slip.encode(message),
+        // TODO:  Add this validation
+        validate: body => body === [0x00, 0x00]
     }, options);
 }
 
@@ -107,7 +184,7 @@ function toResponse(data) {
     return {
         commandCode: header.command,
         header: header,
-        // TODO:  Ported this, but it seems like a bug
+        // Lose the header (first 8 bytes)
         body: data.slice(8, 8 + header.size)
     };
 
@@ -117,5 +194,8 @@ function toResponse(data) {
 
 module.exports = {
     toResponse: toResponse,
-    sync: sync
+    sync: sync,
+    flashBegin: flashBegin,
+    flashAddress: flashAddress,
+    flashFinish: flashFinish
 };

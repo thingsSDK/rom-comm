@@ -32,7 +32,7 @@ module.exports = function(options) {
 
     function send(data, errorCallback) {
         return port.write(data, (err) => {
-            if (err) errorCallback(err);
+            if (err && errorCallback) errorCallback(err);
             flush();
         });
     }
@@ -45,6 +45,10 @@ module.exports = function(options) {
         return port.open(cb);
     }
 
+    function close(cb) {
+        return port.close(cb);
+    }
+
     function flush(cb) {
         log.info("Flushing...");
         return port.flush(cb);
@@ -52,6 +56,7 @@ module.exports = function(options) {
 
     return {
         open: open,
+        close: close,
         flush: flush,
         send: send,
         bindObserver: bindObserver,
