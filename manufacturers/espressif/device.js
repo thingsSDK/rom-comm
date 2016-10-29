@@ -54,7 +54,7 @@ const Options = {
 };
 
 module.exports = function(options) {
-    const comm = Comm(options);
+    const comm = options.comm;
     // TODO: detect this
     const boardName = options.boardName || "Esp12";
 

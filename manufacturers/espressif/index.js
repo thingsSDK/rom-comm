@@ -3,10 +3,15 @@ const fs = require("fs");
 const Rx = require("rxjs/Rx");
 const log = require("../../logger");
 const Device = require('./device');
+const SerialComm = require('./serial');
+
 const device = Device({
     //port: "/dev/cu.wchusbserial1420",
-    port: "/dev/cu.SLAB_USBtoUART",
-    baudRate: 115200
+    comm: SerialComm({
+        port: "/dev/cu.SLAB_USBtoUART",
+        baudRate: 115200
+    })
+
 });
 
 /*

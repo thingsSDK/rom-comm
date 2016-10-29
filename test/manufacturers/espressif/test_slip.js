@@ -3,7 +3,7 @@
 const assert = require("chai").assert;
 const Rx = require("rxjs/Rx");
 // TODO: Fragile import!
-const slip = require("../manufacturers/espressif/slip");
+const slip = require("../../../manufacturers/espressif/slip");
 const FE = slip.CODES.frameEnd;
 
 describe("encode", () => {
@@ -41,8 +41,9 @@ describe("decodeStream", () => {
             .subscribe(x => results.push(x));
 
         assert.equal(results.length, 2);
-        assert.deepEqual(results[0], [1, 2, 3]);
-        assert.deepEqual(results[1], [4, 5, 6]);
+        console.log('RESULTS', results);
+        assert.deepEqual(results[0], Uint8Array.of(1, 2, 3).buffer);
+        assert.deepEqual(results[1], Uint8Array.of(4, 5, 6).buffer);
     });
 
     it("unescapes frame markers", () => {
@@ -55,7 +56,7 @@ describe("decodeStream", () => {
         slip.decodeStream(source$)
             .subscribe(x => assert.deepEqual(
                 x,
-                [1, 2, FE, 3, 4, slip.CODES.frameEscape]
+                Uint8Array.of(1, 2, FE, 3, 4, slip.CODES.frameEscape).buffer
             )
         );
     });
