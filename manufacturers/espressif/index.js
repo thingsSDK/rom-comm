@@ -42,5 +42,4 @@ device.open((err) => {
     device.flashAddress(0x3FC000, fs.readFileSync('tmp/esp_init_data_default.bin'));
     device.flashAddress(0x3FE000, fs.readFileSync('tmp/blank.bin'));
     device.flashFinish();
-    //device.close();
 });

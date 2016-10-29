@@ -30,10 +30,11 @@ module.exports = function(options) {
         };
     }
 
-    function send(data, errorCallback) {
+    function send(data, cb) {
         return port.write(data, (err) => {
-            if (err && errorCallback) errorCallback(err);
+            if (err) log.error(err);
             flush();
+            cb(err);
         });
     }
 
@@ -41,21 +42,17 @@ module.exports = function(options) {
         return port.set(options, callback);
     }
 
-    function open(cb) {
-        return port.open(cb);
-    }
-
     function close(cb) {
         return port.close(cb);
     }
 
     function flush(cb) {
-        log.info("Flushing...");
+        log.debug("Flushing...");
         return port.flush(cb);
     }
 
     return {
-        open: open,
+        open: port.open.bind(port),
         close: close,
         flush: flush,
         send: send,

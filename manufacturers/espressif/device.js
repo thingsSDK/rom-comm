@@ -79,35 +79,38 @@ module.exports = function(options) {
         sequence$.subscribe(
             key => log.debug("Set port", key, at.get(key)),
             err => log.error("Problems resetting into bootloader mode", err),
-            done => comm.flush(() => sync())
+            done => comm.flush(() => {
+                sync();
+                log.info("Bootloader mode");
+            })
         );
     }
 
-    const response$ = Rx.Observable.create(observer => {
+    const rawResponse$ = Rx.Observable.create(observer => {
         // Binds and provides unbinding to the comm abstraction.
         return comm.bindObserver(observer);
     })
         .flatMap(data => Rx.Observable.from(data))
         .share();
 
+    const response$ = slip.decodeStream(rawResponse$);
+    const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+
     const sendCommand = function(displayName, metadata) {
-        const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+
 
         Rx.Observable.of(metadata)
-            .do(x => log.debug('Attempting', displayName, metadata.data))
-            .switchMap(x => {
-                comm.send(metadata.data);
-                return slip.decodeStream(response$);
-            })
+            .flatMap(md => Rx.Observable.defer(() => sender$(md.data)))
             // Response
+            .switchMap(result => response$)
             .map(commands.toResponse)
             .filter(response => metadata.commandCode === response.commandCode)
             .take(1)
             // Handle errors (TODO: use metadata)
-            .timeout(3000)
+            //.timeout(5000)
             .retry(10)
             .subscribe(
-                (x) => log.info(`Command ${displayName} returned`, x),
+                (x) => log.debug(`Command ${displayName} returned`, x),
                 (err) => log.error(`Failed performing ${displayName}`, err),
                 () => log.info(`Successful ${displayName}`)
             );
