@@ -56,7 +56,7 @@ function decodeAccumulator(acc, value) {
         return {
             slipping: false,
             buffer: [],  // Resets the buffer
-            emit: Uint8Array.from(next).buffer
+            emit: Uint8Array.from(next)
         };
     }
     // If we are within the SLIP boundaries

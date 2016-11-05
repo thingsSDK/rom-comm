@@ -168,7 +168,7 @@ function toResponse(data) {
     if (data.length < 8) {
         throw Error('Missing header');
     }
-    const dv = new DataView(data);
+    const dv = new DataView(data.buffer);
     const header = {
         direction: dv.getUint8(0),
         command: dv.getUint8(1),

@@ -90,10 +90,10 @@ module.exports = function(options) {
         // Binds and provides unbinding to the comm abstraction.
         return comm.bindObserver(observer);
     })
-        .flatMap(data => Rx.Observable.from(data))
-        .share();
+        .flatMap(data => Rx.Observable.from(data));
 
-    const response$ = slip.decodeStream(rawResponse$);
+    const responses$ = slip.decodeStream(rawResponse$).share();
+
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
     const sendCommand = function(displayName, metadata) {
@@ -102,13 +102,16 @@ module.exports = function(options) {
         Rx.Observable.of(metadata)
             .flatMap(md => Rx.Observable.defer(() => sender$(md.data)))
             // Response
-            .switchMap(result => response$)
-            .map(commands.toResponse)
+            .zip(responses$, (req, res) => {
+                // Validation
+                return commands.toResponse(res);
+            })
             .filter(response => metadata.commandCode === response.commandCode)
             .take(1)
             // Handle errors (TODO: use metadata)
-            //.timeout(5000)
+            //.timeout(3000)
             .retry(10)
+            .observeOn(Rx.Scheduler.queue)
             .subscribe(
                 (x) => log.debug(`Command ${displayName} returned`, x),
                 (err) => log.error(`Failed performing ${displayName}`, err),
@@ -118,7 +121,6 @@ module.exports = function(options) {
 
     const sync = function() {
         sendCommand('sync', commands.sync());
-
     };
 
     const flashAddress = function(address, data) {
@@ -145,7 +147,5 @@ module.exports = function(options) {
         sync: sync,
         flashAddress: flashAddress,
         flashFinish: flashFinish,
-        // DEBUG ONLY
-        response$: response$
     };
 };
