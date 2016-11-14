@@ -97,23 +97,32 @@ module.exports = function(options) {
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
     const sendCommand = function(displayName, metadata) {
-
+        log.info("sendCommand", displayName);
 
         Rx.Observable.of(metadata)
             .flatMap(md => Rx.Observable.defer(() => sender$(md.data)))
             // Response
             .zip(responses$, (req, res) => {
-                // Validation
+                log.info("Req and res", req, res);
+                // Validation of response format
                 return commands.toResponse(res);
             })
             .filter(response => metadata.commandCode === response.commandCode)
+            .map(response => {
+                if (!metadata.validate(response.body)) {
+                    log.error("Validation failed, throwing error", response.body);
+                    throw Error("Validation error");
+                }
+                log.info("Validation success", response.body);
+                return response;
+            })
             .take(1)
             // Handle errors (TODO: use metadata)
-            //.timeout(3000)
+            .timeout(metadata.timeout)
             .retry(10)
             .observeOn(Rx.Scheduler.queue)
             .subscribe(
-                (x) => log.debug(`Command ${displayName} returned`, x),
+                (x) => log.info(`Command ${displayName} returned`, x),
                 (err) => log.error(`Failed performing ${displayName}`, err),
                 () => log.info(`Successful ${displayName}`)
             );

@@ -88,6 +88,7 @@ describe("Esp12", () => {
     describe("sync", () => {
         it("responds", () => {
             device.sync();
+            assert.equal(dummyComm.out.send.length, 1);
         });
     });
 });

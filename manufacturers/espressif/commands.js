@@ -1,6 +1,7 @@
 "use strict";
 
 const slip = require('./slip');
+const log = require("../../logger");
 
 const commands = {
     CMD0: 0x00,
@@ -74,7 +75,9 @@ function determineNumBlocks(blockSize, length) {
 }
 
 function sync() {
-    return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {});
+    return prepareCommand(commands.SYNC_FRAME, SYNC_FRAME, {
+        timeout: 200
+    });
 }
 
 function flashBegin(address, size) {
@@ -158,14 +161,15 @@ function prepareCommand(command, data, options) {
     return Object.assign({
         commandCode: command,
         data: slip.encode(message),
-        // TODO:  Add this validation
-        validate: body => body === [0x00, 0x00]
+        timeout: 3000,
+        validate: body => body[0] === 0x00 && body[1] === 0x00
     }, options);
 }
 
 // NOTE: Data needs to be slip decoded
 function toResponse(data) {
     if (data.length < 8) {
+        log.error("Missing header, throwing error");
         throw Error('Missing header');
     }
     const dv = new DataView(data.buffer);
@@ -179,6 +183,7 @@ function toResponse(data) {
 
     // If it is not marked as a response
     if (header.direction != 0x01) {
+        log.error("Invalid direction, throwing error", header.direction);
         throw Error(`Invalid direction: ${header.direction}`);
     }
     return {
@@ -187,9 +192,6 @@ function toResponse(data) {
         // Lose the header (first 8 bytes)
         body: data.slice(8, 8 + header.size)
     };
-
-
-
 }
 
 module.exports = {
