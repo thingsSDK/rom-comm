@@ -4,8 +4,6 @@ const SerialPort = require("serialport");
 const log = require("../../logger");
 
 module.exports = function(options) {
-    const commandQueue = [];
-    let isBusy = false;
 
     const port = new SerialPort(options.port, {
         autoOpen: false,
@@ -18,8 +16,11 @@ module.exports = function(options) {
         dsrdtr: false
     });
 
-    function bindObserver(observer) {
-        const dataBinding = data => observer.next(data);
+    function bindObserver(observer, callback) {
+        const dataBinding = data => {
+            observer.next(data);
+            callback.apply(null, data);
+        };
         const errorBinding = error => observer.error(error);
         const doneBinding = () => observer.complete();
         port.on("data", dataBinding);
@@ -34,35 +35,11 @@ module.exports = function(options) {
     }
 
     function send(data, callback) {
-        commandQueue.push([data, callback]);
-        if (!isBusy) {
-            processQueue();
-        }
-    }
-
-    function sendAsync(data, callback) {
-        isBusy = true;
-        log.info('sendAsync started');
         return port.write(data, (err) => {
-            log.info('sendAsync returned');
             if (err) log.error(err);
             port.flush();
-            isBusy = false;
-            processQueue();
             callback(err);
         });
-    }
-
-    function processQueue() {
-        log.info('Processing queue. ', commandQueue.length, 'remain');
-        const next = commandQueue.shift();
-
-        if (!next) {
-            isBusy = false;
-            return;
-        }
-
-        sendAsync(next[0], next[1]);
     }
 
     function setOptions(options, callback) {

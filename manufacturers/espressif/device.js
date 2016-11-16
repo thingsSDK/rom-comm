@@ -58,6 +58,11 @@ module.exports = function(options) {
     // TODO: detect this
     const boardName = options.boardName || "Esp12";
 
+    const commandQueue = [];
+    let isBusy = false;
+
+    const nozzle$ = new Rx.Subject();
+
     const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
 
     function resetIntoBootLoader() {
@@ -80,53 +85,68 @@ module.exports = function(options) {
             key => log.debug("Set port", key, at.get(key)),
             err => log.error("Problems resetting into bootloader mode", err),
             done => comm.flush(() => {
+                log.info("Bootloader mode acheived");
+                nozzle$.next(true);
                 sync();
-                log.info("Bootloader mode");
+                log.info("Nozzle up final");
+                nozzle$.next(true);
             })
         );
     }
 
     const rawResponse$ = Rx.Observable.create(observer => {
         // Binds and provides unbinding to the comm abstraction.
-        return comm.bindObserver(observer);
+        return comm.bindObserver(observer, () => {
+            log.info("Turning on the nozzle");
+            nozzle$.next(true);
+        });
     })
         .flatMap(data => Rx.Observable.from(data));
 
     const responses$ = slip.decodeStream(rawResponse$).share();
-
-    const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+    const requests$ = new Rx.Subject();
 
     const sendCommand = function(displayName, metadata) {
-        log.info("sendCommand", displayName);
-
-        Rx.Observable.of(metadata)
-            .flatMap(md => Rx.Observable.defer(() => sender$(md.data)))
-            // Response
-            .zip(responses$, (req, res) => {
-                log.info("Req and res", req, res);
-                // Validation of response format
-                return commands.toResponse(res);
-            })
-            .filter(response => metadata.commandCode === response.commandCode)
-            .map(response => {
-                if (!metadata.validate(response.body)) {
-                    log.error("Validation failed, throwing error", response.body);
-                    throw Error("Validation error");
-                }
-                log.info("Validation success", response.body);
-                return response;
-            })
-            .take(1)
-            // Handle errors (TODO: use metadata)
-            .timeout(metadata.timeout)
-            .retry(10)
-            .observeOn(Rx.Scheduler.queue)
-            .subscribe(
-                (x) => log.info(`Command ${displayName} returned`, x),
-                (err) => log.error(`Failed performing ${displayName}`, err),
-                () => log.info(`Successful ${displayName}`)
-            );
+        metadata.displayName = displayName;
+        requests$.next(metadata);
     };
+    const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+
+    const start$ = nozzle$.filter(on => on === true);
+    const stop$ = nozzle$.filter(on => on === false);
+
+    start$
+        .flatMap(() => requests$.takeUntil(stop$))
+        .do(md => log.info("Sending request", md.displayName))
+        .switchMap(metadata => {
+            return Rx.Observable.defer(() => sender$(metadata.data))
+                .do(x => {
+                    log.info("Turning nozzle off");
+                    nozzle$.next(false);
+                })
+                // Response
+                .zip(responses$, (req, res) => {
+                    // Validation of response format
+                    return commands.toResponse(res);
+                })
+                .filter(response => metadata.commandCode === response.commandCode)
+                .map(response => {
+                    if (!metadata.validate(response.body)) {
+                        log.error("Validation failed, throwing error", response.body);
+                        throw Error("Validation error");
+                    }
+                    log.info("Validation success", response.body);
+                    return response;
+                })
+                .take(1)
+                .timeout(metadata.timeout)
+                .retry(10);
+        })
+        .subscribe(
+            (x) => log.info("Woohoo got", x),
+            (err) => log.error("Oh no", err),
+            () => log.info("Completed!")
+        );
 
     const sync = function() {
         sendCommand('sync', commands.sync());
