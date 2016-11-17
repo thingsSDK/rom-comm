@@ -88,8 +88,6 @@ module.exports = function(options) {
                 log.info("Bootloader mode acheived");
                 nozzle$.next(true);
                 sync();
-                log.info("Nozzle up final");
-                nozzle$.next(true);
             })
         );
     }
@@ -112,36 +110,36 @@ module.exports = function(options) {
     };
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
-    const start$ = nozzle$.filter(on => on === true);
-    const stop$ = nozzle$.filter(on => on === false);
-
-    start$
-        .flatMap(() => requests$.takeUntil(stop$))
-        .do(md => log.info("Sending request", md.displayName))
-        .switchMap(metadata => {
-            return Rx.Observable.defer(() => sender$(metadata.data))
-                .do(x => {
-                    log.info("Turning nozzle off");
-                    nozzle$.next(false);
-                })
-                // Response
-                .zip(responses$, (req, res) => {
-                    // Validation of response format
-                    return commands.toResponse(res);
-                })
-                .filter(response => metadata.commandCode === response.commandCode)
-                .map(response => {
-                    if (!metadata.validate(response.body)) {
-                        log.error("Validation failed, throwing error", response.body);
-                        throw Error("Validation error");
-                    }
-                    log.info("Validation success", response.body);
-                    return response;
-                })
-                .take(1)
-                .timeout(metadata.timeout)
-                .retry(10);
+    const createRequestObservable = metadata => {
+        return Rx.Observable.defer(() => sender$(metadata.data))
+        .do(x => {
+            log.info("Turning nozzle off for", metadata.displayName);
+            nozzle$.next(false);
         })
+        // Response
+        .zip(responses$, (req, res) => {
+            // Validation of response format
+            return commands.toResponse(res);
+        })
+        .filter(response => metadata.commandCode === response.commandCode)
+        .map(response => {
+            if (!metadata.validate(response.body)) {
+                log.error("Validation failed, throwing error", response.body);
+                throw Error("Validation error");
+            }
+            log.info("Validation success", response.body);
+            return response;
+        })
+        .take(1)
+        .timeout(metadata.timeout)
+        .retry(10);
+    };
+
+    nozzle$
+        .do(state => log.info("Nozzle is", state))
+        .switchMap(on => on ? requests$ : Rx.Observable.never())
+        .do(md => log.info("Sending request", md.displayName))
+        .flatMap(metadata => createRequestObservable(metadata))
         .subscribe(
             (x) => log.info("Woohoo got", x),
             (err) => log.error("Oh no", err),
