@@ -39,31 +39,6 @@ function calculateChecksum(data) {
     return result;
 }
 
-/**
- * Send appropriate C struct header along with command as required
- * SEE:  https://github.com/igrr/esptool-ck/blob/master/espcomm/espcomm.h#L49
- */
-function headerPacketFor(command, data) {
-    let buf = new ArrayBuffer(8);
-    let dv = new DataView(buf);
-    let checksum = 0;
-    if (command === commands.FLASH_DATA) {
-        // There are additional headers here....
-        checksum = calculateChecksum(data.slice(16));
-    } else if (command === commands.FLASH_DONE) {
-        // Nothing to see here
-    } else {
-        // Most commands want the checksum of the entire data packet
-        checksum = calculateChecksum(data);
-    }
-    dv.setUint8(0, 0x00); // Direction, 0x00 is request
-    dv.setUint8(1, command); // Command, see commands constant
-    dv.setUint16(2, data.byteLength, true); // Size of request
-    dv.setUint32(4, checksum, true);
-    return new Buffer(buf);
-}
-
-
 const SYNC_FRAME = new Uint8Array([0x07, 0x07, 0x12, 0x20,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
     0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
@@ -106,15 +81,15 @@ function flashBegin(address, size) {
     dv.setUint32(4, numBlocks, true);
     dv.setUint32(8, FLASH_BLOCK_SIZE, true);
     dv.setUint32(12, address, true);
-    return prepareCommand(commands.FLASH_BEGIN, Uint8Array.from(buffer));
+    return prepareCommand(commands.FLASH_BEGIN, buffer);
 }
 
 function flashAddress(address, data, flashInfo) {
     const numBlocks = determineNumBlocks(FLASH_BLOCK_SIZE, data.length);
-    let requests = [];
+    const requests = [];
     for (let seq = 0; seq < numBlocks; seq++) {
-        let startIndex = seq * FLASH_BLOCK_SIZE;
-        let endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.length);
+        const startIndex = seq * FLASH_BLOCK_SIZE;
+        const endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.length);
         let block = data.slice(startIndex, endIndex);
         // On the first block of the first sequence, override the flash info...
         if (address === 0 && seq === 0 && block[0] === 0xe9) {
@@ -126,8 +101,10 @@ function flashAddress(address, data, flashInfo) {
         // On the last block
         if (endIndex === data.length) {
             // Pad the remaining bits
-            let padAmount = FLASH_BLOCK_SIZE - block.length;
-            block = Buffer.concat([block, new Buffer(padAmount).fill(0xFF)]);
+            const padAmount = FLASH_BLOCK_SIZE - block.length;
+            const filler = new Uint8Array(padAmount);
+            filler.fill(0xFF);
+            block = bufferConcat(block, filler);
         }
         var buffer = new ArrayBuffer(16);
         var dv = new DataView(buffer);
@@ -145,7 +122,7 @@ function flashFinish(reboot) {
     let dv = new DataView(buffer);
     // FIXME:csd - That inverted logic is correct...probably a better variable name than reboot
     dv.setUint32(0, reboot ? 0 : 1, true);
-    return prepareCommand(commands.FLASH_DONE, Uint8Array.from(buffer));
+    return prepareCommand(commands.FLASH_DONE, buffer);
 }
 
 function bufferConcat(buffer1, buffer2) {
@@ -153,6 +130,30 @@ function bufferConcat(buffer1, buffer2) {
     tmp.set(new Uint8Array(buffer1), 0);
     tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
     return tmp.buffer;
+}
+
+/**
+ * Send appropriate C struct header along with command as required
+ * SEE:  https://github.com/igrr/esptool-ck/blob/master/espcomm/espcomm.h#L49
+ */
+function headerPacketFor(command, data) {
+    const buf = new ArrayBuffer(8);
+    const dv = new DataView(buf);
+    let checksum = 0;
+    if (command === commands.FLASH_DATA) {
+        // There are additional headers here....
+        checksum = calculateChecksum(data.slice(16));
+    } else if (command === commands.FLASH_DONE) {
+        // Nothing to see here
+    } else {
+        // Most commands want the checksum of the entire data packet
+        checksum = calculateChecksum(data);
+    }
+    dv.setUint8(0, 0x00); // Direction, 0x00 is request
+    dv.setUint8(1, command); // Command, see commands constant
+    dv.setUint16(2, data.byteLength, true); // Size of request
+    dv.setUint32(4, checksum, true);
+    return new Buffer(buf);
 }
 
 function prepareCommand(command, data, options) {

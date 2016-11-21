@@ -17,10 +17,7 @@ module.exports = function(options) {
     });
 
     function bindObserver(observer, callback) {
-        const dataBinding = data => {
-            observer.next(data);
-            callback.apply(null, data);
-        };
+        const dataBinding = data => observer.next(data);
         const errorBinding = error => observer.error(error);
         const doneBinding = () => observer.complete();
         port.on("data", dataBinding);

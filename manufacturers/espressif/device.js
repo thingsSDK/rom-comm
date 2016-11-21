@@ -61,7 +61,7 @@ module.exports = function(options) {
     const commandQueue = [];
     let isBusy = false;
 
-    const nozzle$ = new Rx.Subject();
+    const queue$ = new Rx.Subject();
 
     const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
 
@@ -71,33 +71,23 @@ module.exports = function(options) {
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
-            .map(key => {
-                return Rx.Observable.defer(() => {
-                    const options = at.get(key);
-                    return setOptions$(options);
-                });
-            })
-            .concatAll()
+            .flatMap(key => Rx.Observable.defer(() => setOptions$(at.get(key))))
             .take(at.size);
 
-
-        sequence$.subscribe(
-            key => log.debug("Set port", key, at.get(key)),
-            err => log.error("Problems resetting into bootloader mode", err),
-            done => comm.flush(() => {
-                log.info("Bootloader mode acheived");
-                nozzle$.next(true);
-                sync();
-            })
+        sequence$
+            .subscribe(
+                key => log.debug("Set port", key, at.get(key)),
+                err => log.error("Problems resetting into bootloader mode", err),
+                done => comm.flush(() => {
+                    log.info("Bootloader mode acheived");
+                    sync();
+                })
         );
     }
 
     const rawResponse$ = Rx.Observable.create(observer => {
         // Binds and provides unbinding to the comm abstraction.
-        return comm.bindObserver(observer, () => {
-            log.info("Turning on the nozzle");
-            nozzle$.next(true);
-        });
+        return comm.bindObserver(observer);
     })
         .flatMap(data => Rx.Observable.from(data));
 
@@ -110,44 +100,52 @@ module.exports = function(options) {
     };
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
-    const createRequestObservable = metadata => {
+    const createRequestObservable$ = metadata => {
         return Rx.Observable.defer(() => sender$(metadata.data))
-        .do(x => {
-            log.info("Turning nozzle off for", metadata.displayName);
-            nozzle$.next(false);
-        })
+        .do(() => log.info("Sent request: " + metadata.displayName))
         // Response
-        .zip(responses$, (req, res) => {
-            // Validation of response format
-            return commands.toResponse(res);
-        })
-        .filter(response => metadata.commandCode === response.commandCode)
-        .map(response => {
-            if (!metadata.validate(response.body)) {
-                log.error("Validation failed, throwing error", response.body);
-                throw Error("Validation error");
-            }
-            log.info("Validation success", response.body);
-            return response;
-        })
-        .take(1)
+        .flatMap(() => responses$
+            .map(raw => commands.toResponse(raw))
+            .do(response => log.info("Received response", response))
+            .skipWhile(response => metadata.commandCode !== response.commandCode)
+            .do(response => {
+                if (!metadata.validate(response.body)) {
+                    throw Error("Response validation failed: " + response.body);
+                }
+            })
+            .do(response => log.info("Valid response", response))
+        )
         .timeout(metadata.timeout)
-        .retry(10);
+        .retry(10)
+        .take(1);
+
     };
 
-    nozzle$
-        .do(state => log.info("Nozzle is", state))
-        .switchMap(on => on ? requests$ : Rx.Observable.never())
-        .do(md => log.info("Sending request", md.displayName))
-        .flatMap(metadata => createRequestObservable(metadata))
+    queue$
+        .zip(requests$, (_, metadata) => metadata)
+        .flatMap(metadata => createRequestObservable$(metadata))
         .subscribe(
-            (x) => log.info("Woohoo got", x),
+            (x) => {
+                log.info("Loop complete sending next request", x);
+                queue$.next(true);
+            },
             (err) => log.error("Oh no", err),
             () => log.info("Completed!")
         );
 
     const sync = function() {
-        sendCommand('sync', commands.sync());
+        const metadata = commands.sync();
+        metadata.displayName = 'sync';
+        createRequestObservable$(metadata)
+            .repeat(10)
+            .subscribe(
+                x => log.info("Sync round complete", x),
+                err => log.error("Sync problems", err),
+                () => {
+                    log.info("Successful sync, opening flood gates");
+                    queue$.next(true);
+                }
+            );
     };
 
     const flashAddress = function(address, data) {
