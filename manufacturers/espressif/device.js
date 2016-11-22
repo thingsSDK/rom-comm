@@ -58,12 +58,20 @@ module.exports = function(options) {
     // TODO: detect this
     const boardName = options.boardName || "Esp12";
 
-    const commandQueue = [];
-    let isBusy = false;
-
     const queue$ = new Rx.Subject();
-
     const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
+    const sender$ = Rx.Observable.bindNodeCallback(comm.send);
+
+    const rawResponse$ = Rx.Observable.create(observer => {
+        // Binds and provides unbinding to the comm abstraction.
+        return comm.bindObserver(observer);
+    })
+        .flatMap(data => Rx.Observable.from(data))
+        .share();
+
+    const responses$ = slip.decodeStream(rawResponse$);
+    const requests$ = new Rx.Subject();
+
 
     function resetIntoBootLoader() {
         log.info("Resetting into bootloader...");
@@ -85,36 +93,22 @@ module.exports = function(options) {
         );
     }
 
-    const rawResponse$ = Rx.Observable.create(observer => {
-        // Binds and provides unbinding to the comm abstraction.
-        return comm.bindObserver(observer);
-    })
-        .flatMap(data => Rx.Observable.from(data))
-        .share();
-
-    const responses$ = slip.decodeStream(rawResponse$);
-    const requests$ = new Rx.Subject();
-
-    const sendCommand = function(displayName, metadata) {
+    const queueRequest = function(displayName, metadata) {
         metadata.displayName = displayName;
         requests$.next(metadata);
     };
-    const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
     const createRequestObservable$ = metadata => {
         return Rx.Observable.defer(() => sender$(metadata.data))
-        .do(() => log.info("Sent request: " + metadata.displayName))
         // Response
         .flatMap(() => responses$
             .map(raw => commands.toResponse(raw))
-            .do(response => log.info("Received response", response))
             .skipWhile(response => metadata.commandCode !== response.commandCode)
             .do(response => {
                 if (!metadata.validate(response.body)) {
                     throw Error("Response validation failed: " + response.body);
                 }
             })
-            .do(response => log.info("Valid response", response))
         )
         .timeout(metadata.timeout)
         .retry(10)
@@ -127,11 +121,11 @@ module.exports = function(options) {
         .flatMap(metadata => createRequestObservable$(metadata))
         .subscribe(
             (x) => {
-                log.info("Loop complete sending next request", x);
+                log.debug("Loop complete sending next request", x);
                 queue$.next(true);
             },
             (err) => log.error("Oh no", err),
-            () => log.info("Completed!")
+            () => log.debug("Completed!")
         );
 
     const sync = function() {
@@ -140,7 +134,7 @@ module.exports = function(options) {
         createRequestObservable$(metadata)
             .repeat(10)
             .subscribe(
-                x => log.info("Sync round complete", x),
+                x => log.debug("Sync round complete", x),
                 err => log.error("Sync problems", err),
                 () => {
                     log.info("Successful sync, opening flood gates");
@@ -154,16 +148,16 @@ module.exports = function(options) {
             flashMode: FLASH_MODES[Options[boardName].flashMode],
             flashSize: FLASH_SIZES[Options[boardName].flashSize]
         };
-        sendCommand('flashBegin', commands.flashBegin(address, data.byteLength));
+        queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
         cmds.forEach((cmd, index) => {
-           sendCommand(`flashAddress[${index + 1} of ${cmds.length}]`, cmd);
+           queueRequest(`flashAddress[${index + 1} of ${cmds.length}]`, cmd);
         });
     };
 
     const flashFinish = function() {
         flashAddress(0, 0);
-        sendCommand('flashFinish', commands.flashFinish());
+        queueRequest('flashFinish', commands.flashFinish());
     };
 
     return {
