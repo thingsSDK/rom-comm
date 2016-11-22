@@ -72,6 +72,20 @@ module.exports = function(options) {
     const responses$ = slip.decodeStream(rawResponse$);
     const requests$ = new Rx.Subject();
 
+    function sync() {
+        const metadata = commands.sync();
+        metadata.displayName = 'sync';
+        createRequestObservable$(metadata)
+            .repeat(10)
+            .subscribe(
+                x => log.debug("Sync round complete", x),
+                err => log.error("Sync problems", err),
+                () => {
+                    log.info("Successful sync, opening flood gates");
+                    queue$.next(true);
+                }
+            );
+    }
 
     function resetIntoBootLoader() {
         log.info("Resetting into bootloader...");
@@ -129,20 +143,7 @@ module.exports = function(options) {
             () => log.debug("Completed!")
         );
 
-    const sync = function() {
-        const metadata = commands.sync();
-        metadata.displayName = 'sync';
-        createRequestObservable$(metadata)
-            .repeat(10)
-            .subscribe(
-                x => log.debug("Sync round complete", x),
-                err => log.error("Sync problems", err),
-                () => {
-                    log.info("Successful sync, opening flood gates");
-                    queue$.next(true);
-                }
-            );
-    };
+
 
     const flashAddress = function(address, data) {
         const flashInfo = {
@@ -165,7 +166,6 @@ module.exports = function(options) {
         open: comm.open.bind(comm),
         close: comm.close.bind(comm),
         resetIntoBootLoader: resetIntoBootLoader,
-        sync: sync,
         flashAddress: flashAddress,
         flashFinish: flashFinish,
     };

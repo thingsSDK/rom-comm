@@ -5,16 +5,35 @@ const Rx = require("rxjs/Rx");
 const EventEmitter = require("events");
 // TODO: Fragile import!
 const Device = require("../../../manufacturers/espressif/device");
+const slip = require("../../../manufacturers/espressif/slip");
+
+
+
 
 function DummyComm() {
     const evt = new EventEmitter();
-    const out = {
-        send: [],
-        setOptions: []
-    };
+    const out$ = new Rx.Subject();
+
+    function trackAction(action) {
+        out$.next([action, ...arguments]);
+    }
+
+    const responseQueue = [];
 
     function dummy() {
 
+    }
+
+    function makeResult() {
+        return slip.encode(Uint8Array.from(arguments));
+    }
+
+    const RESPONSES = {
+        MISSING_HEADER: makeResult(0)
+    };
+
+    function addResponse(key) {
+        responseQueue.push(key);
     }
 
     function bindObserver(observer) {
@@ -33,19 +52,20 @@ function DummyComm() {
     }
 
     function _determineResponse(data) {
-        // TODO: Build response and SLIP Encode it.
-        return data;
+        const key = responseQueue.shift();
+        const response = RESPONSES[key];
+        return console.log("Got response:", key, response);;
     }
 
     function send(data, callback) {
-        out.send.push(data);
+        trackAction("send", data, callback);
         const response = _determineResponse(data);
         evt.emit('data', response);
         if (callback) callback();
     }
 
     function setOptions(options, callback) {
-        out.setOptions.push(options);
+        trackAction("setOptions", options, callback);
         if (callback) callback();
     }
 
@@ -56,7 +76,8 @@ function DummyComm() {
         send: send,
         bindObserver: bindObserver,
         setOptions: setOptions,
-        out: out
+        _out$: out$,
+        _addResponse: addResponse
     };
 }
 
@@ -69,26 +90,27 @@ describe("Esp12", () => {
     });
 
     describe("resetIntoBootloader", () => {
-        it("follows bootloader sequence", (done) => {
+        it("follows proper bootloader sequence", (done) => {
             device.resetIntoBootLoader();
-            Rx.Observable
-                .interval(100)
-                .take(1)
+            dummyComm._out$
+                .filter(call => call[0] === "setOptions")
+                .take(3)
+                .timeout(120)
                 .subscribe(
-                    null,
-                    null,
+                    x => x,
+                    err => {
+                        assert.fail(err);
+                        done();
+                    },
                     () => {
-                        assert.equal(dummyComm.out.setOptions.length, 3);
                         done();
                     }
                 );
         });
-    });
-
-    describe("sync", () => {
-        it("responds", () => {
-            device.sync();
-            assert.equal(dummyComm.out.send.length, 1);
-        });
+        it("calls sync on completion", (done) => {
+            device.resetIntoBootLoader();
+            dummyComm._out$
+                .filter(call => call[0] === "send")
+        })
     });
 });
