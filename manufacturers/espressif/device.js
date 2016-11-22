@@ -89,9 +89,10 @@ module.exports = function(options) {
         // Binds and provides unbinding to the comm abstraction.
         return comm.bindObserver(observer);
     })
-        .flatMap(data => Rx.Observable.from(data));
+        .flatMap(data => Rx.Observable.from(data))
+        .share();
 
-    const responses$ = slip.decodeStream(rawResponse$).share();
+    const responses$ = slip.decodeStream(rawResponse$);
     const requests$ = new Rx.Subject();
 
     const sendCommand = function(displayName, metadata) {
@@ -153,7 +154,7 @@ module.exports = function(options) {
             flashMode: FLASH_MODES[Options[boardName].flashMode],
             flashSize: FLASH_SIZES[Options[boardName].flashSize]
         };
-        sendCommand('flashBegin', commands.flashBegin(address, data.length));
+        sendCommand('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
         cmds.forEach((cmd, index) => {
            sendCommand(`flashAddress[${index + 1} of ${cmds.length}]`, cmd);

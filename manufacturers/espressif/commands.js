@@ -32,8 +32,8 @@ function commandToKey(command) {
 
 function calculateChecksum(data) {
     // Magic Checksum starts with 0xEF
-    let result = 0xEF;
-    for (let i = 0; i < data.length; i++) {
+    var result = 0xEF;
+    for (var i = 0; i < data.length; i++) {
         result ^= data[i];
     }
     return result;
@@ -81,15 +81,15 @@ function flashBegin(address, size) {
     dv.setUint32(4, numBlocks, true);
     dv.setUint32(8, FLASH_BLOCK_SIZE, true);
     dv.setUint32(12, address, true);
-    return prepareCommand(commands.FLASH_BEGIN, buffer);
+    return prepareCommand(commands.FLASH_BEGIN, new Buffer(buffer));
 }
 
 function flashAddress(address, data, flashInfo) {
-    const numBlocks = determineNumBlocks(FLASH_BLOCK_SIZE, data.length);
+    const numBlocks = determineNumBlocks(FLASH_BLOCK_SIZE, data.byteLength);
     const requests = [];
     for (let seq = 0; seq < numBlocks; seq++) {
         const startIndex = seq * FLASH_BLOCK_SIZE;
-        const endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.length);
+        const endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.byteLength);
         let block = data.slice(startIndex, endIndex);
         // On the first block of the first sequence, override the flash info...
         if (address === 0 && seq === 0 && block[0] === 0xe9) {
@@ -99,22 +99,22 @@ function flashAddress(address, data, flashInfo) {
             block[3] = flashInfo.flashSize;
         }
         // On the last block
-        if (endIndex === data.length) {
+        if (endIndex === data.byteLength) {
             // Pad the remaining bits
-            const padAmount = FLASH_BLOCK_SIZE - block.length;
+            const padAmount = FLASH_BLOCK_SIZE - block.byteLength;
             const filler = new Uint8Array(padAmount);
             filler.fill(0xFF);
             block = bufferConcat(block, filler);
         }
-        var buffer = new ArrayBuffer(16);
-        var dv = new DataView(buffer);
-        dv.setUint32(0, block.length, true);
+        var header = new ArrayBuffer(16);
+        var dv = new DataView(header);
+        dv.setUint32(0, block.byteLength, true);
         dv.setUint32(4, seq, true);
         dv.setUint32(8, 0, true);  // Uhhh
         dv.setUint32(12, 0, true);  // Uhhh
-        requests.push(bufferConcat(buffer, block));
+        requests.push(bufferConcat(header, block));
     }
-    return requests.map(req => prepareCommand(commands.FLASH_DATA, req));
+    return requests.map(req => prepareCommand(commands.FLASH_DATA, new Buffer(req), {}));
 }
 
 function flashFinish(reboot) {
@@ -153,7 +153,7 @@ function headerPacketFor(command, data) {
     dv.setUint8(1, command); // Command, see commands constant
     dv.setUint16(2, data.byteLength, true); // Size of request
     dv.setUint32(4, checksum, true);
-    return new Buffer(buf);
+    return buf;
 }
 
 function prepareCommand(command, data, options) {
@@ -169,7 +169,7 @@ function prepareCommand(command, data, options) {
 
 // NOTE: Data needs to be slip decoded
 function toResponse(data) {
-    if (data.length < 8) {
+    if (data.byteLength < 8) {
         log.error("Missing header, throwing error");
         throw Error('Missing header');
     }
