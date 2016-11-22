@@ -7,9 +7,10 @@ const SerialComm = require('./serial');
 
 const device = Device({
     //port: "/dev/cu.wchusbserial1420",
+    //port: "/dev/cu.SLAB_USBtoUART"
     comm: SerialComm({
-        port: "/dev/cu.SLAB_USBtoUART",
-        baudRate: 115200
+        port: "/dev/cu.wchusbserial1420",
+        baudRate: 460800
     })
 
 });

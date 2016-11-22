@@ -111,13 +111,14 @@ module.exports = function(options) {
             })
         )
         .timeout(metadata.timeout)
-        .retry(10)
+        .retry(100)
         .take(1);
 
     };
 
     queue$
         .zip(requests$, (_, metadata) => metadata)
+        .do(metadata => log.debug(`Processing ${metadata.displayName}...`))
         .flatMap(metadata => createRequestObservable$(metadata))
         .subscribe(
             (x) => {
