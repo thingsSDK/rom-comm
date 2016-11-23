@@ -107,7 +107,7 @@ describe("Esp12", () => {
                     }
                 );
         });
-        it("calls sync on completion", (done) => {
+        xit("calls sync on completion", (done) => {
             device.resetIntoBootLoader();
             dummyComm._out$
                 .filter(call => call[0] === "send")
