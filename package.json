@@ -4,7 +4,8 @@
   "description": "ROM Communication",
   "main": "index.js",
   "scripts": {
-    "test": "mocha --recursive"
+    "test": "mocha --recursive",
+    "test:coverage": "istanbul cover node_modules/mocha/bin/_mocha -- --recursive"
   },
   "repository": {
     "type": "git",
@@ -19,7 +20,7 @@
     "flasher"
   ],
   "author": "Craig Dennis",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/thingsSDK/rom-comm/issues"
   },
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "chai": "^3.5.0",
+    "istanbul": "^0.4.5",
     "mocha": "^3.1.2"
   }
 }
