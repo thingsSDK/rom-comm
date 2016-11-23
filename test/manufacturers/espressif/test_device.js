@@ -54,7 +54,8 @@ function DummyComm() {
     function _determineResponse(data) {
         const key = responseQueue.shift();
         const response = RESPONSES[key];
-        return console.log("Got response:", key, response);;
+        console.log("Got response:", key, response);
+        return response;
     }
 
     function send(data, callback) {
@@ -91,8 +92,9 @@ describe("Esp12", () => {
 
     describe("resetIntoBootloader", () => {
         it("follows proper bootloader sequence", (done) => {
+
             device.resetIntoBootLoader();
-            dummyComm._out$
+                dummyComm._out$
                 .filter(call => call[0] === "setOptions")
                 .take(3)
                 .timeout(120)
@@ -106,11 +108,6 @@ describe("Esp12", () => {
                         done();
                     }
                 );
-        });
-        xit("calls sync on completion", (done) => {
-            device.resetIntoBootLoader();
-            dummyComm._out$
-                .filter(call => call[0] === "send")
-        })
+            });
     });
 });
