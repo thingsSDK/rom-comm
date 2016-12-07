@@ -16,7 +16,7 @@ module.exports = function(options) {
         dsrdtr: false
     });
 
-    function bindObserver(observer, callback) {
+    function bindObserver(observer) {
         const dataBinding = data => observer.next(data);
         const errorBinding = error => observer.error(error);
         const doneBinding = () => observer.complete();

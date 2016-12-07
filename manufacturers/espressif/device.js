@@ -7,7 +7,6 @@ const Comm = require("./serial");
 const commands = require("./commands");
 const slip = require("./slip");
 
-
 const FLASH_MODES = {
     qio: 0,
     qout: 1,
@@ -81,8 +80,8 @@ module.exports = function(options) {
                 x => log.debug("Sync round complete", x),
                 err => log.error("Sync problems", err),
                 () => {
-                    log.info("Successful sync, opening flood gates");
-                    queue$.next(true);
+                    log.info("Successful sync, setting mode");
+                    setBootloaderMode(true);
                 }
             );
     }
@@ -112,7 +111,17 @@ module.exports = function(options) {
         requests$.next(metadata);
     };
 
+    const setBootloaderMode = enabled => {
+        log.debug("Setting mode", enabled);
+        if (enabled) {
+            queue$.next(true);
+        } else {
+            queue$.next(false);
+        }
+    };
+
     const createRequestObservable$ = metadata => {
+        // FIXME: sender$ does IO...that seems bad
         return Rx.Observable.defer(() => sender$(metadata.data))
         // Response
         .flatMap(() => responses$
@@ -162,11 +171,18 @@ module.exports = function(options) {
         queueRequest('flashFinish', commands.flashFinish());
     };
 
+    const flash = function(specs) {
+        resetIntoBootLoader();
+        for (let spec of specs) {
+            flashAddress(Number.parseInt(spec.address), spec.buffer);
+        }
+        flashFinish();
+        // TODO: Kill the queue
+    };
+
     return {
         open: comm.open.bind(comm),
         close: comm.close.bind(comm),
-        resetIntoBootLoader: resetIntoBootLoader,
-        flashAddress: flashAddress,
-        flashFinish: flashFinish,
+        flash: flash
     };
 };
