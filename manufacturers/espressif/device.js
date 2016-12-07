@@ -106,9 +106,9 @@ module.exports = function(options) {
         );
     }
 
-    const queueRequest = function(displayName, metadata) {
-        metadata.displayName = displayName;
-        requests$.next(metadata);
+    const queueRequest = function(displayName, request) {
+        request.displayName = displayName;
+        requests$.next(request);
     };
 
     const setBootloaderMode = enabled => {
@@ -116,33 +116,40 @@ module.exports = function(options) {
         if (enabled) {
             queue$.next(true);
         } else {
-            queue$.next(false);
+            stopper$.next(true);
         }
     };
 
-    const createRequestObservable$ = metadata => {
+    const createRequestObservable$ = request => {
         // FIXME: sender$ does IO...that seems bad
-        return Rx.Observable.defer(() => sender$(metadata.data))
-        // Response
+        return Rx.Observable.defer(() => sender$(request.data))
+        // Response coming in from responses$ is already SLIP decoded
         .flatMap(() => responses$
             .map(raw => commands.toResponse(raw))
-            .skipWhile(response => metadata.commandCode !== response.commandCode)
+            .skipWhile(response => request.commandCode !== response.commandCode)
             .do(response => {
-                if (!metadata.validate(response.body)) {
+                if (!request.validate(response.body)) {
                     throw Error("Response validation failed: " + response.body);
+                }
+                // FIXME: This needs to be an request.onSuccess() call
+                if (request.displayName === 'flashFinish') {
+                    setBootloaderMode(false);
                 }
             })
         )
-        .timeout(metadata.timeout)
+        .timeout(request.timeout)
         .retry(100)
         .take(1);
 
     };
 
+    const stopper$ = new Rx.Subject();
+
     queue$
-        .zip(requests$, (_, metadata) => metadata)
-        .do(metadata => log.debug(`Processing ${metadata.displayName}...`))
-        .flatMap(metadata => createRequestObservable$(metadata))
+        .zip(requests$, (_, request) => request)
+        .do(request => log.debug(`Processing ${request.displayName}...`))
+        .flatMap(request => createRequestObservable$(request))
+        .takeUntil(stopper$)
         .subscribe(
             (x) => {
                 log.debug("Loop complete sending next request", x);
@@ -177,7 +184,6 @@ module.exports = function(options) {
             flashAddress(Number.parseInt(spec.address), spec.buffer);
         }
         flashFinish();
-        // TODO: Kill the queue
     };
 
     return {
