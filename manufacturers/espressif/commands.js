@@ -200,5 +200,6 @@ module.exports = {
     sync: sync,
     flashBegin: flashBegin,
     flashAddress: flashAddress,
-    flashFinish: flashFinish
+    flashFinish: flashFinish,
+    FLASH_BLOCK_SIZE: FLASH_BLOCK_SIZE
 };

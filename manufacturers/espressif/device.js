@@ -55,7 +55,9 @@ const Options = {
 module.exports = function(comm, options) {
     options = options || {};
     const boardName = options.boardName || "Esp12";
-
+    const defaultProgressHandler = (state) => log.info("Current progress", state);
+    const onProgress = options.onProgress || defaultProgressHandler;
+    const _state = {};
 
     const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
@@ -179,7 +181,12 @@ module.exports = function(comm, options) {
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
         cmds.forEach((cmd, index) => {
-           queueRequest(`flashAddress[${index + 1} of ${cmds.length}]`, cmd);
+           queueRequest(`flashAddress[${index + 1} of ${cmds.length}]`, cmd, {
+               onSuccess: () => {
+                   _state.flashedBytes += commands.FLASH_BLOCK_SIZE;
+                   onProgress(_state);
+               }
+           });
         });
     };
 
@@ -192,6 +199,10 @@ module.exports = function(comm, options) {
 
     const flash = function(specs) {
         resetIntoBootLoader();
+        _state.totalBytes = specs.reduce((counter, spec) => {
+            return counter + spec.buffer.length;
+        }, 0);
+        _state.flashedBytes = 0;
         for (let spec of specs) {
             flashAddress(Number.parseInt(spec.address), spec.buffer);
         }
