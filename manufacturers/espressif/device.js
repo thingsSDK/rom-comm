@@ -56,7 +56,7 @@ module.exports = function(comm, options) {
     options = options || {};
     const boardName = options.boardName || "Esp12";
 
-    const queue$ = new Rx.Subject();
+
     const setOptions$ = Rx.Observable.bindNodeCallback(comm.setOptions);
     const sender$ = Rx.Observable.bindNodeCallback(comm.send);
 
@@ -70,6 +70,72 @@ module.exports = function(comm, options) {
     const responses$ = slip.decodeStream(rawResponse$);
     const requests$ = new Rx.Subject();
 
+    // Reusable Request/Response cycle
+    // Validates and retries
+    function createRequestObservable$ (request) {
+        // FIXME: sender$ does IO...that seems bad
+        return Rx.Observable.defer(() => sender$(request.data))
+            // Response coming in from responses$ is already SLIP decoded
+            .flatMap(() => responses$
+                .map(raw => commands.toResponse(raw))
+                .skipWhile(response => request.commandCode !== response.commandCode)
+                .do(response => {
+                    if (!request.validate(response.body)) {
+                        throw Error("Response validation failed: " + response.body);
+                    }
+                    if (request.onSuccess) {
+                        request.onSuccess.apply();
+                    }
+                })
+            )
+            .timeout(request.timeout)
+            .retry(100)
+            .take(1);
+    }
+
+
+    // Stacks all requests that use bootloader mode
+    const queue$ = new Rx.Subject();
+    const stopper$ = new Rx.Subject();
+    queue$
+        .zip(requests$, (_, request) => request)
+        .do(request => log.debug(`Processing ${request.displayName}...`))
+        .flatMap(request => createRequestObservable$(request))
+        .takeUntil(stopper$)
+        .subscribe(
+            (x) => {
+                log.debug("Loop complete sending next request", x);
+                queue$.next(true);
+            },
+            (err) => log.error("Oh no", err),
+            () => log.debug("Completed!")
+        );
+
+    const queueRequest = function(displayName, request, options) {
+        request.displayName = displayName;
+        if (options) {
+            // Stitches things like onSuccess onto the request.
+            Object.assign(request, options);
+        }
+        requests$.next(request);
+    };
+
+    const setBootloaderMode = enabled => {
+        log.debug("Setting bootloader mode", enabled);
+        if (enabled) {
+            // Open the floodgates
+            queue$.next(true);
+        } else {
+            // Close the floodgates
+            stopper$.next(true);
+        }
+    };
+
+    // Device commands
+
+
+    // Gets device and software on same page...
+    // This is whacky, but after about 10 successful interactions, things get right
     function sync() {
         const metadata = commands.sync();
         metadata.displayName = 'sync';
@@ -104,63 +170,6 @@ module.exports = function(comm, options) {
                 })
         );
     }
-
-    const queueRequest = function(displayName, request, options) {
-        request.displayName = displayName;
-        if (options) {
-            Object.assign(request, options);
-        }
-        requests$.next(request);
-    };
-
-    const setBootloaderMode = enabled => {
-        log.debug("Setting mode", enabled);
-        if (enabled) {
-            queue$.next(true);
-        } else {
-            stopper$.next(true);
-        }
-    };
-
-    const createRequestObservable$ = request => {
-        // FIXME: sender$ does IO...that seems bad
-        return Rx.Observable.defer(() => sender$(request.data))
-        // Response coming in from responses$ is already SLIP decoded
-        .flatMap(() => responses$
-            .map(raw => commands.toResponse(raw))
-            .skipWhile(response => request.commandCode !== response.commandCode)
-            .do(response => {
-                if (!request.validate(response.body)) {
-                    throw Error("Response validation failed: " + response.body);
-                }
-                if (request.onSuccess) {
-                    request.onSuccess.apply();
-                }
-            })
-        )
-        .timeout(request.timeout)
-        .retry(100)
-        .take(1);
-
-    };
-
-    const stopper$ = new Rx.Subject();
-
-    queue$
-        .zip(requests$, (_, request) => request)
-        .do(request => log.debug(`Processing ${request.displayName}...`))
-        .flatMap(request => createRequestObservable$(request))
-        .takeUntil(stopper$)
-        .subscribe(
-            (x) => {
-                log.debug("Loop complete sending next request", x);
-                queue$.next(true);
-            },
-            (err) => log.error("Oh no", err),
-            () => log.debug("Completed!")
-        );
-
-
 
     const flashAddress = function(address, data) {
         const flashInfo = {
