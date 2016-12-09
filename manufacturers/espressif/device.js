@@ -69,6 +69,10 @@ module.exports = function(comm, options) {
 
     const responses$ = slip.decodeStream(rawResponse$);
     const requests$ = new Rx.Subject();
+    // Manages flow to the stacks requests that use bootloader mode
+    const queue$ = new Rx.Subject();
+    const stopper$ = new Rx.Subject();
+
 
     // Reusable Request/Response cycle
     // Validates and retries
@@ -93,10 +97,6 @@ module.exports = function(comm, options) {
             .take(1);
     }
 
-
-    // Stacks all requests that use bootloader mode
-    const queue$ = new Rx.Subject();
-    const stopper$ = new Rx.Subject();
     queue$
         .zip(requests$, (_, request) => request)
         .do(request => log.debug(`Processing ${request.displayName}...`))
