@@ -106,8 +106,11 @@ module.exports = function(options) {
         );
     }
 
-    const queueRequest = function(displayName, request) {
+    const queueRequest = function(displayName, request, options) {
         request.displayName = displayName;
+        if (options) {
+            Object.assign(request, options);
+        }
         requests$.next(request);
     };
 
@@ -131,9 +134,8 @@ module.exports = function(options) {
                 if (!request.validate(response.body)) {
                     throw Error("Response validation failed: " + response.body);
                 }
-                // FIXME: This needs to be an request.onSuccess() call
-                if (request.displayName === 'flashFinish') {
-                    setBootloaderMode(false);
+                if (request.onSuccess) {
+                    request.onSuccess.apply();
                 }
             })
         )
@@ -175,7 +177,9 @@ module.exports = function(options) {
 
     const flashFinish = function() {
         flashAddress(0, 0);
-        queueRequest('flashFinish', commands.flashFinish());
+        queueRequest('flashFinish', commands.flashFinish(), {
+            onSuccess: () => setBootloaderMode(false)
+        });
     };
 
     const flash = function(specs) {
