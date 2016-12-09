@@ -52,9 +52,8 @@ const Options = {
     }
 };
 
-module.exports = function(options) {
-    const comm = options.comm;
-    // TODO: detect this
+module.exports = function(comm, options) {
+    options = options || {};
     const boardName = options.boardName || "Esp12";
 
     const queue$ = new Rx.Subject();
@@ -97,7 +96,7 @@ module.exports = function(options) {
 
         sequence$
             .subscribe(
-                key => log.debug("Set port", key, at.get(key)),
+                key => log.debug("Set comm", key, at.get(key)),
                 err => log.error("Problems resetting into bootloader mode", err),
                 done => comm.flush(() => {
                     log.info("Bootloader mode acheived");

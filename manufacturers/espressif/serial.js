@@ -3,11 +3,13 @@
 const SerialPort = require("serialport");
 const log = require("../../logger");
 
-module.exports = function(options) {
+module.exports = function(portName, options) {
+    options = options || {};
+    const baudRate = options.baudRate || 115200;
 
-    const port = new SerialPort(options.port, {
+    const port = new SerialPort(portName, {
         autoOpen: false,
-        baudRate: options.baudRate,
+        baudRate: baudRate,
         parity: "none",
         stopBits: 1,
         xon: false,
