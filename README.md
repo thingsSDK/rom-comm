@@ -16,6 +16,32 @@ incantations and rituals, when you've got better things to be building.
 
 thingsSDK strives to abstract away the barriers to device development. You've got things to do.
 
+## Examples
+
+Here is ROMComm to flash the Espruino runtime onto an Espressif ESP8266 over USB.
+
+```javascript
+const portName = '/dev/cu.SLAB_USBtoUART';
+const serialOptions = {
+    baudRate: 460800
+};
+const device = ROMComm.serial(portName, serialOptions);
+
+device.open((err) => {
+    device.flash([
+      {'address': '0x0000', buffer: fs.readFileSync('examples/tmp/boot_v1.4(b1).bin')},
+      {'address': '0x1000', buffer: fs.readFileSync('examples/tmp/espruino_esp8266_user1.bin')},
+      {'address': '0x3FC000', buffer: fs.readFileSync('examples/tmp/esp_init_data_default.bin')},
+      {'address': '0x3FE000', buffer: fs.readFileSync('examples/tmp/blank.bin')}
+    ], (err) => {
+        console.log('Flashed!');
+        device.close();
+    });
+});
+```
+
+This code and more lives in the [examples](examples) folder.
+
 ## Supported manufacturers
 
 * [Espressif](http://espressif.com)
