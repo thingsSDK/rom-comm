@@ -9,7 +9,7 @@ function ESP8266(comm, options) {
   options = options || {};
   // Force override
   Object.assign(options, {
-    boardName: "ESP12"
+    boardName: "Esp12"
   });
   return Device(comm, options);
 }
