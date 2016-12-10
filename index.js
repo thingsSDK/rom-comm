@@ -4,8 +4,12 @@ const espressif = require("./manufacturers/espressif");
 
 
 // ROM Comm
-module.exports = function ROMComm(portName, options) {
+const serial = (portName, serialOptions, deviceOptions) => {
     // TODO: auto-detect this
-    const comm = espressif.SerialComm(portName);
-    return espressif.ESP8266(comm, options);
+    const comm = espressif.SerialComm(portName, serialOptions);
+    return espressif.ESP8266(comm, deviceOptions);
+};
+
+module.exports = {
+    serial: serial
 };
