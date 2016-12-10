@@ -2,8 +2,6 @@
 
 const Rx = require("rxjs/Rx");
 const log = require("../../logger");
-// TODO: detect this automatically, not sure there will be others
-const Comm = require("./serial");
 const commands = require("./commands");
 const slip = require("./slip");
 

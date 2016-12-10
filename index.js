@@ -1,9 +1,11 @@
-// connect
-// setMode
-    // Bootloader
-    //
-// flashAddress
-// request
-// response
+"use strict";
 
-// reportProgress
+const espressif = require("./manufacturers/espressif");
+
+
+// ROM Comm
+module.exports = function ROMComm(portName, options) {
+    // TODO: auto-detect this
+    const comm = espressif.SerialComm(portName);
+    return espressif.ESP8266(comm, options);
+};
