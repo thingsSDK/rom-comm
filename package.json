@@ -1,7 +1,7 @@
 {
   "name": "rom-comm",
   "version": "1.0.0",
-  "description": "ROM Communication",
+  "description": "Communicate with microcontrollers",
   "main": "index.js",
   "scripts": {
     "test": "mocha --recursive",
@@ -30,13 +30,12 @@
   "homepage": "https://github.com/thingsSDK/rom-comm#readme",
   "dependencies": {
     "bunyan": "^1.8.5",
-    "mocha": "^3.2.0",
     "rxjs": "^5.0.0-rc.5",
     "serialport": "^4.0.6"
   },
   "devDependencies": {
     "chai": "^3.5.0",
     "istanbul": "^0.4.5",
-    "mocha": "^3.1.2"
+    "mocha": "^3.2.0"
   }
 }
