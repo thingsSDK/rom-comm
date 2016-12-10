@@ -14,10 +14,13 @@
   "keywords": [
     "iot",
     "rom",
+    "espressif",
     "esp8266",
     "esp32",
     "flash",
-    "flasher"
+    "flasher",
+    "microcontroller",
+    "reactive"
   ],
   "author": "Craig Dennis",
   "license": "MIT",
@@ -26,9 +29,10 @@
   },
   "homepage": "https://github.com/thingsSDK/rom-comm#readme",
   "dependencies": {
-    "bunyan": "^1.8.1",
-    "rxjs": "^5.0.0-beta.12",
-    "serialport": "^4.0.3"
+    "bunyan": "^1.8.5",
+    "mocha": "^3.2.0",
+    "rxjs": "^5.0.0-rc.5",
+    "serialport": "^4.0.6"
   },
   "devDependencies": {
     "chai": "^3.5.0",
