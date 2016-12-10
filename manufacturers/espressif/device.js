@@ -188,14 +188,19 @@ module.exports = function(comm, options) {
         });
     };
 
-    const flashFinish = function() {
+    const flashFinish = function(onComplete) {
         flashAddress(0, 0);
         queueRequest('flashFinish', commands.flashFinish(), {
-            onSuccess: () => setBootloaderMode(false)
+            onSuccess: () => {
+                setBootloaderMode(false);
+                if (onComplete) {
+                    onComplete.apply();
+                }
+            }
         });
     };
 
-    const flash = function(specs) {
+    const flash = function(specs, onComplete) {
         resetIntoBootLoader();
         _state.totalBytes = specs.reduce((counter, spec) => {
             return counter + spec.buffer.length;
@@ -204,7 +209,7 @@ module.exports = function(comm, options) {
         for (let spec of specs) {
             flashAddress(Number.parseInt(spec.address), spec.buffer);
         }
-        flashFinish();
+        flashFinish(onComplete);
     };
 
     return {
