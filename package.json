@@ -1,6 +1,6 @@
 {
   "name": "rom-comm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Communicate with microcontrollers",
   "main": "index.js",
   "scripts": {
