@@ -4,5 +4,5 @@ const bunyan = require("bunyan");
 
 module.exports = bunyan.createLogger({
     name: "rom-comm",
-    level: "info"
+    level: "debug"
 });

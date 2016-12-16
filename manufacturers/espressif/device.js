@@ -88,7 +88,7 @@ module.exports = function(comm, options) {
                         throw Error("Response validation failed: " + response.body);
                     }
                     if (request.onSuccess) {
-                        request.onSuccess.apply();
+                        request.onSuccess.apply(null, response.body);
                     }
                 })
             )
@@ -212,9 +212,20 @@ module.exports = function(comm, options) {
         flashFinish(onComplete);
     };
 
+    const readRegister = function(address, callback) {
+        resetIntoBootLoader();
+        queueRequest('readRegister', commands.readRegister(address), {
+            onSuccess: (value) => {
+                callback(null, value);
+            }
+        });
+        queue$.next(true);
+    };
+
     return {
         open: comm.open.bind(comm),
         close: comm.close.bind(comm),
-        flash: flash
+        flash: flash,
+        readRegister: readRegister
     };
 };

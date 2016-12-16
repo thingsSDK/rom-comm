@@ -106,8 +106,8 @@ function flashAddress(address, data, flashInfo) {
             filler.fill(0xFF);
             block = bufferConcat(block, filler);
         }
-        var header = new ArrayBuffer(16);
-        var dv = new DataView(header);
+        const header = new ArrayBuffer(16);
+        const dv = new DataView(header);
         dv.setUint32(0, block.byteLength, true);
         dv.setUint32(4, seq, true);
         dv.setUint32(8, 0, true);  // Uhhh
@@ -118,11 +118,18 @@ function flashAddress(address, data, flashInfo) {
 }
 
 function flashFinish(reboot) {
-    let buffer = new ArrayBuffer(4);
-    let dv = new DataView(buffer);
+    const buffer = new ArrayBuffer(4);
+    const dv = new DataView(buffer);
     // FIXME:csd - That inverted logic is correct...probably a better variable name than reboot
     dv.setUint32(0, reboot ? 0 : 1, true);
     return prepareCommand(commands.FLASH_DONE, buffer);
+}
+
+function readRegister(address) {
+        const buffer = new ArrayBuffer(4);
+        const dv = new DataView(buffer);
+        dv.setUint32(0, address, true);
+        return prepareCommand(commands.READ_REGISTER, new Buffer(buffer));
 }
 
 function bufferConcat(buffer1, buffer2) {
@@ -201,5 +208,6 @@ module.exports = {
     flashBegin: flashBegin,
     flashAddress: flashAddress,
     flashFinish: flashFinish,
+    readRegister: readRegister,
     FLASH_BLOCK_SIZE: FLASH_BLOCK_SIZE
 };
