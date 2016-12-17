@@ -80,7 +80,7 @@ module.exports = function(comm, options) {
         // FIXME: sender$ does IO...that seems bad
         return Rx.Observable.defer(() => sender$(request.data))
             // Response coming in from responses$ is already SLIP decoded
-            .flatMap(() => responses$
+            .switchMap(() => responses$
                 .map(raw => commands.toResponse(raw))
                 .skipWhile(response => request.commandCode !== response.commandCode)
                 .do(response => {
@@ -88,7 +88,7 @@ module.exports = function(comm, options) {
                         throw Error("Response validation failed: " + response.body);
                     }
                     if (request.onSuccess) {
-                        request.onSuccess.apply(null, response.body);
+                        request.onSuccess.apply(null, [response]);
                     }
                 })
             )
@@ -215,11 +215,10 @@ module.exports = function(comm, options) {
     const readRegister = function(address, callback) {
         resetIntoBootLoader();
         queueRequest('readRegister', commands.readRegister(address), {
-            onSuccess: (value) => {
-                callback(null, value);
+            onSuccess: (response) => {
+                callback(null, response.header.value);
             }
         });
-        queue$.next(true);
     };
 
     return {

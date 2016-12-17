@@ -1,5 +1,6 @@
 const espressif = require("../../../manufacturers/espressif");
 
+//const portName = '/dev/cu.usbserial-DN01DZMR';
 const portName = '/dev/cu.SLAB_USBtoUART';
 const serialOptions = {
     baudRate: 460800

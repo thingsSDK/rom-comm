@@ -186,7 +186,7 @@ function toResponse(data) {
         command: dv.getUint8(1),
         // NOTE: Little Endian represented by true here
         size: dv.getUint16(2, true),
-        checksum: dv.getUint32(4, true)
+        value: dv.getUint32(4, true)
     };
 
     // If it is not marked as a response
