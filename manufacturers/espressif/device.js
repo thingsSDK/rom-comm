@@ -30,13 +30,13 @@ const FLASH_SIZES = {
     "4MB-c2": 0x70
 };
 
-const ChipSpecific = {
+const BoardSpecific = {
     /**
      * Tested: Adafruit Feather Huzzah
      * Needs testing: Adafruit Huzzah, SparkFun Thing, SparkFun Thing Dev Board
      */
     Esp12: {
-        flashFrequency: "80m",
+        flashFrequency: "40m",
         flashMode: "qio",
         flashSize: "4MB",
         // RTS - Request To Send
@@ -153,7 +153,7 @@ module.exports = function(comm, options) {
 
     function resetIntoBootLoader() {
         log.info("Resetting into bootloader...");
-        const at = new Map(ChipSpecific[boardName].bootLoaderSequence);
+        const at = new Map(BoardSpecific[boardName].bootLoaderSequence);
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
@@ -173,8 +173,8 @@ module.exports = function(comm, options) {
 
     const flashAddress = function(address, data) {
         const flashInfo = {
-            flashMode: FLASH_MODES[ChipSpecific[boardName].flashMode],
-            flashSizeFreq: FLASH_SIZES[ChipSpecific[boardName].flashSize] + FLASH_SIZES[ChipSpecific[boardName].flashFrequency]
+            flashMode: FLASH_MODES[BoardSpecific[boardName].flashMode],
+            flashSizeFreq: FLASH_SIZES[BoardSpecific[boardName].flashSize] + FLASH_FREQUENCIES[BoardSpecific[boardName].flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
