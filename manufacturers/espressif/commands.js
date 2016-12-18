@@ -92,9 +92,10 @@ function flashAddress(address, data, flashInfo) {
         const endIndex = Math.min((seq + 1) * FLASH_BLOCK_SIZE, data.byteLength);
         let block = data.slice(startIndex, endIndex);
         // On the first block of the first sequence, override the flash info...
-        if (address === 0 && seq === 0 && block[0] === 0xe9) {
+        if (address === flashInfo.flashHeaderOffset &&
+                seq === 0 &&
+                block[0] === 0xe9) {
             // ... which lives in the 3rd and 4th bytes
-            // TODO:  This looks different in the new esptool.py
             block[2] = flashInfo.flashMode;
             block[3] = flashInfo.flashSizeFrequency;
         }

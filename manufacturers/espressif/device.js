@@ -36,6 +36,7 @@ const BoardSpecific = {
      * Needs testing: Adafruit Huzzah, SparkFun Thing, SparkFun Thing Dev Board
      */
     Esp12: {
+        flashHeaderOffset: 0,
         flashFrequency: "80m",
         flashMode: "qio",
         flashSize: "4MB",
@@ -47,6 +48,10 @@ const BoardSpecific = {
             [5, {rts: false, dtr: true}],
             [50, {rts: false, dtr: false}]
         ]
+    },
+    // FIXME:  This seems off
+    Esp32: {
+        flashHeaderOffset: 0x1000
     }
 };
 
@@ -172,9 +177,12 @@ module.exports = function(comm, options) {
     }
 
     const flashAddress = function(address, data) {
+        const specifics = BoardSpecific[boardName];
         const flashInfo = {
-            flashMode: FLASH_MODES[BoardSpecific[boardName].flashMode],
-            flashSizeFrequency: FLASH_SIZES[BoardSpecific[boardName].flashSize] + FLASH_FREQUENCIES[BoardSpecific[boardName].flashFrequency]
+            flashMode: FLASH_MODES[specifics.flashMode],
+            flashHeaderOffset: specifics.FLASH_HEADER_OFFSET,
+            flashSizeFrequency: FLASH_SIZES[specifics.flashSize] +
+                FLASH_FREQUENCIES[specifics.flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);

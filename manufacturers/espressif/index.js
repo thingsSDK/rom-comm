@@ -23,7 +23,7 @@ function ESP32(comm, options) {
   options = options || {};
   // Force override
   Object.assign(options, {
-    boardName: "Esp12"
+    boardName: "Esp32"
   });
   return Device(comm, options);
 }
