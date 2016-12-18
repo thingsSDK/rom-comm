@@ -36,7 +36,7 @@ const BoardSpecific = {
      * Needs testing: Adafruit Huzzah, SparkFun Thing, SparkFun Thing Dev Board
      */
     Esp12: {
-        flashFrequency: "40m",
+        flashFrequency: "80m",
         flashMode: "qio",
         flashSize: "4MB",
         // RTS - Request To Send
@@ -174,7 +174,7 @@ module.exports = function(comm, options) {
     const flashAddress = function(address, data) {
         const flashInfo = {
             flashMode: FLASH_MODES[BoardSpecific[boardName].flashMode],
-            flashSizeFreq: FLASH_SIZES[BoardSpecific[boardName].flashSize] + FLASH_FREQUENCIES[BoardSpecific[boardName].flashFrequency]
+            flashSizeFrequency: FLASH_SIZES[BoardSpecific[boardName].flashSize] + FLASH_FREQUENCIES[BoardSpecific[boardName].flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
