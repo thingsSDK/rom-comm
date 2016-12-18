@@ -20,17 +20,17 @@ const FLASH_FREQUENCIES = {
 };
 
 const FLASH_SIZES = {
-    "4m": 0x00,
-    "2m": 0x10,
-    "8m": 0x20,
-    "16m": 0x30,
-    "32m": 0x40,
-    "16m-c1": 0x50,
-    "32m-c1": 0x60,
-    "32m-c2": 0x70
+    "512KB": 0x00,
+    "256KB": 0x10,
+    "1MB": 0x20,
+    "2MB": 0x30,
+    "4MB": 0x40,
+    "2MB-c1": 0x50,
+    "4MB-c1": 0x60,
+    "4MB-c2": 0x70
 };
 
-const Options = {
+const ChipSpecific = {
     /**
      * Tested: Adafruit Feather Huzzah
      * Needs testing: Adafruit Huzzah, SparkFun Thing, SparkFun Thing Dev Board
@@ -38,7 +38,7 @@ const Options = {
     Esp12: {
         flashFrequency: "80m",
         flashMode: "qio",
-        flashSize: "32m",
+        flashSize: "4MB",
         // RTS - Request To Send
         // DTR - Data Terminal Ready
         // NOTE: Must set values at the same time.
@@ -100,11 +100,11 @@ module.exports = function(comm, options) {
     queue$
         .zip(requests$, (_, request) => request)
         .do(request => log.debug(`Processing ${request.displayName}...`))
-        .flatMap(request => createRequestObservable$(request))
+        .switchMap(request => createRequestObservable$(request))
         .takeUntil(stopper$)
         .subscribe(
             (x) => {
-                log.debug("Loop complete sending next request", x);
+                log.debug("Loop complete.  Response was", x);
                 queue$.next(true);
             },
             (err) => log.error("Oh no", err),
@@ -153,7 +153,7 @@ module.exports = function(comm, options) {
 
     function resetIntoBootLoader() {
         log.info("Resetting into bootloader...");
-        const at = new Map(Options[boardName].bootLoaderSequence);
+        const at = new Map(ChipSpecific[boardName].bootLoaderSequence);
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
@@ -173,8 +173,8 @@ module.exports = function(comm, options) {
 
     const flashAddress = function(address, data) {
         const flashInfo = {
-            flashMode: FLASH_MODES[Options[boardName].flashMode],
-            flashSize: FLASH_SIZES[Options[boardName].flashSize]
+            flashMode: FLASH_MODES[ChipSpecific[boardName].flashMode],
+            flashSizeFreq: FLASH_SIZES[ChipSpecific[boardName].flashSize] + FLASH_SIZES[ChipSpecific[boardName].flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
