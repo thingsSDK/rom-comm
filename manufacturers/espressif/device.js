@@ -177,6 +177,7 @@ module.exports = function(comm, options) {
     }
 
     const flashAddress = function(address, data) {
+
         const specifics = BoardSpecific[boardName];
         const flashInfo = {
             flashMode: FLASH_MODES[specifics.flashMode],
