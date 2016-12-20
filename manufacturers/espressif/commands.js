@@ -96,7 +96,7 @@ function flashAddress(address, data, flashInfo) {
             // ... which lives in the 3rd and 4th bytes
             // TODO:  This looks different in the new esptool.py
             block[2] = flashInfo.flashMode;
-            block[3] = flashInfo.flashSize;
+            block[3] = flashInfo.flashSizeFrequency;
         }
         // On the last block
         if (endIndex === data.byteLength) {

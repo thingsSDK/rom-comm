@@ -172,9 +172,11 @@ module.exports = function(comm, options) {
     }
 
     const flashAddress = function(address, data) {
+        const specs = Options[boardName];
         const flashInfo = {
-            flashMode: FLASH_MODES[Options[boardName].flashMode],
-            flashSize: FLASH_SIZES[Options[boardName].flashSize]
+            flashMode: FLASH_MODES[specs.flashMode],
+            flashSize: FLASH_SIZES[specs.flashSize],
+            flashSizeFrequency: FLASH_SIZES[specs.flashSize] + FLASH_FREQUENCIES[specs.flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
