@@ -30,34 +30,8 @@ const FLASH_SIZES = {
     "4MB-c2": 0x70
 };
 
-const BoardSpecific = {
-    /**
-     * Tested: Adafruit Feather Huzzah
-     * Needs testing: Adafruit Huzzah, SparkFun Thing, SparkFun Thing Dev Board
-     */
-    Esp12: {
-        flashHeaderOffset: 0,
-        flashFrequency: "80m",
-        flashMode: "qio",
-        flashSize: "4MB",
-        // RTS - Request To Send
-        // DTR - Data Terminal Ready
-        // NOTE: Must set values at the same time.
-        bootLoaderSequence: [
-            [0, {rts: true, dtr: false}],
-            [5, {rts: false, dtr: true}],
-            [50, {rts: false, dtr: false}]
-        ]
-    },
-    // FIXME:  This seems off
-    Esp32: {
-        flashHeaderOffset: 0x1000
-    }
-};
-
 module.exports = function(comm, options) {
     options = options || {};
-    const boardName = options.boardName || "Esp12";
     const defaultProgressHandler = (state) => log.info("Current progress", state);
     const onProgress = options.onProgress || defaultProgressHandler;
     const _state = {};
@@ -156,9 +130,9 @@ module.exports = function(comm, options) {
             );
     }
 
-    function resetIntoBootLoader() {
+    function resetIntoBootLoader(settings) {
         log.info("Resetting into bootloader...");
-        const at = new Map(BoardSpecific[boardName].bootLoaderSequence);
+        const at = new Map(settings.bootLoaderSequence);
         const sequence$ = Rx.Observable
             .interval(1)
             .filter(key => at.has(key))
@@ -176,14 +150,13 @@ module.exports = function(comm, options) {
         );
     }
 
-    const flashAddress = function(address, data) {
+    const flashAddress = function(settings, address, data) {
 
-        const specifics = BoardSpecific[boardName];
         const flashInfo = {
-            flashMode: FLASH_MODES[specifics.flashMode],
-            flashHeaderOffset: specifics.FLASH_HEADER_OFFSET,
-            flashSizeFrequency: FLASH_SIZES[specifics.flashSize] +
-                FLASH_FREQUENCIES[specifics.flashFrequency]
+            flashMode: FLASH_MODES[settings.flashMode],
+            flashHeaderOffset: settings.FLASH_HEADER_OFFSET,
+            flashSizeFrequency: FLASH_SIZES[settings.flashSize] +
+                FLASH_FREQUENCIES[settings.flashFrequency]
         };
         queueRequest('flashBegin', commands.flashBegin(address, data.byteLength));
         const cmds = commands.flashAddress(address, data, flashInfo);
@@ -197,8 +170,8 @@ module.exports = function(comm, options) {
         });
     };
 
-    const flashFinish = function(onComplete) {
-        flashAddress(0, 0);
+    const flashFinish = function(settings, onComplete) {
+        flashAddress(settings, 0, 0);
         queueRequest('flashFinish', commands.flashFinish(), {
             onSuccess: () => {
                 setBootloaderMode(false);
@@ -209,20 +182,20 @@ module.exports = function(comm, options) {
         });
     };
 
-    const flash = function(specs, onComplete) {
-        resetIntoBootLoader();
+    const flash = function(settings, specs, onComplete) {
+        resetIntoBootLoader(settings);
         _state.totalBytes = specs.reduce((counter, spec) => {
             return counter + spec.buffer.length;
         }, 0);
         _state.flashedBytes = 0;
         for (let spec of specs) {
-            flashAddress(Number.parseInt(spec.address), spec.buffer);
+            flashAddress(settings, Number.parseInt(spec.address), spec.buffer);
         }
-        flashFinish(onComplete);
+        flashFinish(settings, onComplete);
     };
 
-    const readRegister = function(address, callback) {
-        resetIntoBootLoader();
+    const readRegister = function(settings, address, callback) {
+        resetIntoBootLoader(settings);
         queueRequest('readRegister', commands.readRegister(address), {
             onSuccess: (response) => {
                 callback(null, response.header.value);
